@@ -38,7 +38,7 @@ If it ends with `failed`, see [Troubleshooting](#troubleshooting).
 ./scripts/smoke.sh
 ```
 
-PowerShell: `& "C:\Program Files\Git\bin\bash.exe" scripts/smoke.sh`, or run the four requests from the README by hand.
+PowerShell: `& "C:\Program Files\Git\bin\bash.exe" scripts/smoke.sh`, or run the curl requests from the README by hand.
 
 Expect `{"status":"ok"}`, `{"status":"ready"}`, a model list, a stream of `data:` lines containing the extraction JSON and ending with `data: [DONE]`, and finally `Open WebUI -> middleware -> OpenAI: ok`. That last step sends a chat through Open WebUI's own API with no system prompt in the request and checks that the reply is still the extraction envelope, which only the middleware could have caused.
 
@@ -68,7 +68,7 @@ Expect two lines, one per message, with `"messages_in": 1, "messages_out": 2` an
 make test-docker          # or: docker build --target test --no-cache-filter test --progress=plain middleware
 ```
 
-No local Python is used. Expect `41 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
+No local Python is used. Expect `42 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
 
 ## 6. Stop
 

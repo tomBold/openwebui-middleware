@@ -27,74 +27,48 @@ flowchart LR
     OpenAI -->|SSE| MW -->|SSE| WebUI
 ```
 
-Open WebUI is the chat application and owns the state; it keeps chats, users and settings in PostgreSQL. The middleware is stateless: it never touches the database, it only sits on the path to OpenAI. What it forwards is the client's request untouched, with two additions: the system prompt inserted as the first message, and `stream_options.include_usage` when streaming so token usage can be logged. Nothing is removed, rewritten or redacted.
+Three services, three jobs. Open WebUI is the chat application and owns the state: chats, users and settings live in PostgreSQL. The middleware is stateless and never touches the database; it only sits on the path to OpenAI. What it forwards is the client's request untouched plus two additions: the system prompt inserted as the first message, and `stream_options.include_usage` when streaming so token usage can be logged. Nothing is removed, rewritten or redacted.
 
 ## Run it locally
 
-Requirements: Docker Desktop and an OpenAI API key. Nothing else; Python is only needed to run the tests, see [Development](#development).
+Requirements: Docker Desktop and an OpenAI API key. Python is only needed to run the tests.
 
 ```bash
 git clone https://github.com/tomBold/openwebui-middleware.git && cd openwebui-middleware
 ./scripts/start.sh            # Windows: powershell -File scripts/start.ps1
 ```
 
-The script creates `.env` from `.env.example`, prompts for the API key (or takes it from `OPENAI_API_KEY` in the environment and asks nothing), builds and starts the three services, waits until both the middleware and Open WebUI answer, and prints where each one is up: <http://localhost:3000> for Open WebUI and <http://localhost:8000> for the middleware by default. The addresses come from `OPEN_WEBUI_PORT` and `MIDDLEWARE_PORT` in `.env`; if something on your machine already uses one of those ports, change it there and rerun.
-
-Users only ever open Open WebUI; it reaches OpenAI through the middleware automatically. The middleware's own address exists for verification: health, readiness and the status page.
-
-A blank page or a 404 that is not Open WebUI means another process on your machine already owns that port: change `OPEN_WEBUI_PORT` in `.env`, rerun the script and use the address it prints.
-
-[RUNBOOK.md](RUNBOOK.md) is the same journey as a checklist: each step non-interactive, with the expected output and a troubleshooting table.
-
-Manual equivalent:
-
-```bash
-cp .env.example .env          # then edit OPENAI_API_KEY
-docker compose up -d --build
-```
+The script creates `.env` from `.env.example`, prompts for the key, starts the three services, waits until they answer and prints the addresses: <http://localhost:3000> for Open WebUI and <http://localhost:8000> for the middleware. Users only ever open Open WebUI; the middleware address exists for verification. If a port is taken, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env` and rerun. Manual equivalent: `cp .env.example .env`, edit the key, `docker compose up -d --build`. [RUNBOOK.md](RUNBOOK.md) is the same journey as a checklist with expected output at each step.
 
 ### Configuration
 
-Everything is read from `.env`; `.env.example` lists the same keys with these defaults. After changing a value, `docker compose up -d` applies it (a plain `restart` does not re-read `.env`).
+Everything is read from `.env`. After changing a value, `docker compose up -d` applies it (a plain `restart` does not re-read `.env`).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | required | Your key. Only the middleware ever sees it. |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Upstream to forward to; any OpenAI-compatible endpoint works. |
-| `OPENAI_MODELS` | `gpt-6-luna,gpt-5.6-luna,gpt-5.4-mini` | Allowlist shown to Open WebUI. Empty means every model the key can see. If none of the names exist on your account, `/v1/models` returns an empty list and the log says `models.allowlist_matched_nothing`. |
-| `LOG_LEVEL` | `INFO` | Standard Python level names; anything else fails at startup with the allowed list. |
-| `LOG_JSON` | `true` | `false` prints the same events as aligned text, see [Reading the logs](#reading-the-logs). |
+| `OPENAI_MODELS` | `gpt-6-luna,gpt-5.6-luna,gpt-5.4-mini` | Allowlist shown to Open WebUI. Empty means every model the key can see. |
+| `LOG_LEVEL` | `INFO` | Standard Python level names; anything else fails at startup. |
+| `LOG_JSON` | `true` | `false` prints the same events as aligned text. |
 | `UPSTREAM_CONNECT_TIMEOUT` | `10` | Seconds to establish a connection to OpenAI. |
-| `UPSTREAM_READ_TIMEOUT` | `120` | Seconds to wait for OpenAI between bytes; raise it for slow reasoning models. |
+| `UPSTREAM_READ_TIMEOUT` | `120` | Seconds to wait for OpenAI between bytes. |
 | `READINESS_TIMEOUT` | `5` | Budget for the `/ready` probe. |
-| `OPEN_WEBUI_PORT` | `3000` | Host port for Open WebUI, bound to `127.0.0.1`. |
-| `MIDDLEWARE_PORT` | `8000` | Host port for the middleware, bound to `127.0.0.1`. |
-| `WEBUI_AUTH` | `false` | Open WebUI login screen off for local use. The smoke test's end-to-end step needs it off. |
+| `OPEN_WEBUI_PORT`, `MIDDLEWARE_PORT` | `3000`, `8000` | Host ports, bound to `127.0.0.1` so nothing on your network can spend your key. |
+| `WEBUI_AUTH` | `false` | Open WebUI login screen off for local use; the smoke test needs it off. |
 | `WEBUI_SECRET_KEY` | `local-dev-secret` | Open WebUI session signing key. |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `openwebui` | Database credentials, used only inside the compose network. |
 
-Both published ports bind to loopback, so nothing on your network can reach the stack or spend your key.
-
 ### Getting an OpenAI API key
 
-The stack needs your own key; none is bundled. At <https://platform.openai.com>:
+At <https://platform.openai.com>: **Billing**, add credit ($5 is plenty; an extraction costs about $0.001). **API keys**, **Create new secret key**, copy it into `OPENAI_API_KEY`. `GET /ready` then tells you whether it works: `{"status":"ready"}` or `{"status":"upstream_unavailable"}`.
 
-1. **Billing** then add credit. The minimum is $5 and covers this comfortably: a typical extraction costs roughly $0.001 to $0.002. Leave auto-reload off.
-2. **API keys** then **Create new secret key**, owned by **You**. The default **All** permissions works; copy the key immediately, it is shown once.
-3. Paste it into `OPENAI_API_KEY` in `.env`.
-
-`GET /ready` tells you whether the key works: `{"status":"ready"}` means OpenAI accepted it, `{"status":"upstream_unavailable"}` means it was rejected, expired, or unreachable.
-
-#### Least-privilege keys
-
-Following OpenAI's [API key safety guidance](https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety) and [production best practices](https://developers.openai.com/api/docs/guides/production-best-practices), the key can be narrowed to exactly what this service calls. Choose **Restricted** and grant only:
+Following OpenAI's [key safety guidance](https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety), the key can be **Restricted** to exactly what this service calls:
 
 | Scope | Level | Used by |
 | --- | --- | --- |
 | List models | Read | `GET /ready`, `GET /v1/models` |
 | Model capabilities > Chat completions | Request | `POST /v1/chat/completions` |
-
-Everything else stays `None`. Set an expiry and rotate rather than leaving the key open-ended.
 
 > **Caveat worth knowing.** Restricted keys have a [documented failure mode](https://community.openai.com/t/missing-scopes-model-request-on-restricted-api-key/1371602) where selecting a single child scope sets `api.model.chat_completions.request` without the parent `model.request`, and every call returns `401 Missing scopes: model.request`. OpenAI shipped a fix in May 2026, but reports of regressions continue. The scopes above were verified against the live API for this project. If you hit that error, switch the key to **All** permissions.
 
@@ -104,33 +78,31 @@ Everything else stays `None`. Set an expiry and rotate rather than leaving the k
 
 ### The real flow: Open WebUI
 
-This is the path the assignment describes, `User -> Open WebUI -> Middleware -> OpenAI`, and the only one a user ever sees. Open the Open WebUI URL the start script printed, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Open WebUI sends a plain user message; the middleware adds the system prompt before anything reaches OpenAI. The browser's network tab shows the `completions` request leaving with only `user` and `assistant` messages and no `system` entry, and the middleware log for the same request shows `"messages_in": 1, "messages_out": 2, "system_prompt_injected": true`.
+Open the Open WebUI URL, pick a model, paste any messy text. Open WebUI sends a plain user message; the middleware adds the system prompt before anything reaches OpenAI. The browser's network tab shows the request leaving with no `system` entry, and the middleware log for the same request shows `"messages_in": 1, "messages_out": 2, "system_prompt_injected": true`.
 
-![One request captured at both ends: the browser payload with no system message, and the middleware log showing the injection](docs/flow.png)
+![One request at both ends: browser payload without a system message, middleware log showing the injection](docs/flow.png)
 
 ![A forwarded job listing turned into the extraction envelope](docs/extraction.png)
 
-Ask a follow-up such as "what is the salary range?" and the reply is prose referring to the extracted fields.
-
-![A follow-up question answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
+![A follow-up answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
 
 ### Reading the logs
 
-`docker compose logs -f middleware` (or `make logs`) prints one structured line per lifecycle event. Every line for one request carries the same `request_id`, which is also returned to the caller as the `X-Request-ID` header. A streamed chat produces:
+`docker compose logs -f middleware` prints one structured line per lifecycle event. Every line for one request carries the same `request_id`, also returned to the caller as `X-Request-ID`.
 
 | Event | Fields | Meaning |
 | --- | --- | --- |
-| `app.started` | `upstream`, `models`, `system_prompt_chars` | Once at boot: what it forwards to and which prompt it loaded |
+| `app.started` | `upstream`, `models`, `system_prompt_chars` | Once at boot |
 | `request.started` | `method`, `path` | Request accepted |
 | `chat.request` | `model`, `stream`, `messages_in`, `messages_out`, `system_prompt_injected` | Prompt prepended; one more message leaves than arrived |
-| `upstream.first_byte` | `ttft_ms` | OpenAI started answering; time to first token |
+| `upstream.first_byte` | `ttft_ms` | OpenAI started answering |
 | `upstream.stream_completed` | `duration_ms`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `cached_tokens` | Stream finished, usage read off the final chunk |
-| `chat.completed` | `prompt_tokens`, `completion_tokens`, `total_tokens`, `cached_tokens` | Non-streaming equivalent of the line above |
+| `chat.completed` | same usage fields | Non-streaming equivalent |
 | `request.completed` | `status_code`, `duration_ms` | Response fully sent |
 
-Failures get their own events at `warning` level and never hide the status: `upstream.error` (`status_code`, `error_type`, `error`) when OpenAI answers 4xx or 5xx, which is relayed with the same status, message and type in the OpenAI error shape, or when the connection fails (502) or times out (504); `upstream.stream_failed` (`error_type`, `error`) when the connection drops mid-stream, after which the client receives an SSE error event carrying the same 502 or 504 classification, then `[DONE]`; `readiness.failed` when `/ready` cannot reach OpenAI and answers 503.
+Failures are `warning` events that never hide the status: `upstream.error` when OpenAI answers 4xx or 5xx (relayed as is), fails to connect (502) or times out (504); `upstream.stream_failed` when the connection drops mid-stream, after which the client gets an SSE error event and `[DONE]`; `readiness.failed` when `/ready` cannot reach OpenAI and answers 503.
 
-Logs are JSON by default so they can be shipped anywhere. For reading them as text, set `LOG_JSON=false` in `.env` and run `docker compose up -d middleware`. The same run with a rejected key then looks like this (keys are sorted alphabetically by the renderer):
+With `LOG_JSON=false` the same run with a rejected key reads:
 
 ```text
 2026-10-30T04:51:11.109566Z [info     ] request.started                method=POST path=/v1/chat/completions request_id=c0e82dd3c9214a42a4a5e67c3d5cdecd
@@ -141,31 +113,17 @@ Logs are JSON by default so they can be shipped anywhere. For reading them as te
 
 ### Verification tooling: the middleware address
 
-Everything below exists to check the middleware without going through Open WebUI. It is not part of the user flow and nothing in the chat depends on it.
-
-The middleware URL the start script printed (<http://localhost:8000> by default) serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that sends a sample through the same `POST /v1/chat/completions` Open WebUI uses and streams the extraction back.
+Not part of the user flow. <http://localhost:8000> serves a status page: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that streams a sample through the same `POST /v1/chat/completions`.
 
 ![Middleware status page with a streamed sample extraction](docs/status.png)
 
-From a terminal:
-
 ```bash
 ./scripts/smoke.sh            # health, readiness, models, a streaming completion, then one chat through Open WebUI's API
-```
-
-The last step sends a chat through Open WebUI's own API without any system prompt in the request and asserts the reply is still the extraction envelope, which only the middleware could have produced.
-
-Or by hand:
-
-```bash
 curl localhost:8000/health    # {"status":"ok"}
-curl localhost:8000/ready     # {"status":"ready"} once OpenAI is reachable with your key
-curl localhost:8000/v1/models
-
-curl -N localhost:8000/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
+curl localhost:8000/ready     # {"status":"ready"} once OpenAI accepts your key
 ```
+
+The smoke test's last step sends a chat through Open WebUI's own API with no system prompt in the request and asserts the reply is still the extraction envelope, which only the middleware could have produced.
 
 ## How it works
 
@@ -189,81 +147,55 @@ sequenceDiagram
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /` | Status page for operators. Static HTML, calls the endpoints below. |
+| `GET /` | Status page. Static HTML that calls the endpoints below. |
 | `GET /health` | Liveness. Never touches OpenAI. |
 | `GET /ready` | Readiness. Calls OpenAI `/models`; 503 when unreachable or the key is rejected. |
 | `GET /v1/models` | Model discovery for Open WebUI, filtered by `OPENAI_MODELS`. |
 | `POST /v1/chat/completions` | Injects the prompt, forwards, streams back. |
 
-Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compatible backend, so those are the two OpenAI endpoints that exist. The status page is deliberately not a chat client: Open WebUI is the UI, and the page only exercises the same endpoints a reviewer would otherwise curl.
+Open WebUI 0.6.5 calls exactly two OpenAI endpoints: `/models` to fill the model picker at startup, and `/chat/completions` for every message. Without the first it cannot send a single chat, which is why the proxy serves both and nothing else.
+
+SSE, Server-Sent Events, is how OpenAI streams: the HTTP connection stays open and the reply arrives as a series of `data:` lines, each one a chunk of a few tokens, ending with `data: [DONE]`. That is why text appears word by word in the chat, and why the middleware relays the bytes as they arrive instead of waiting for the whole answer. It reads the stream on the side to pick up the final `usage` chunk for the log.
 
 ## The system prompt
 
-The prompt and the reasoning behind it, with the edge cases it was tested against, are in [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md). The middleware loads it from `middleware/app/prompts/system_prompt.md` at startup, and a unit test asserts the document and the shipped file never drift.
+The prompt is [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md), with the design reasoning, the edge cases and what was iterated. The middleware loads it from `middleware/app/prompts/system_prompt.md` at startup, and a unit test asserts the two files never drift. The assignment's three demands each map to a required key, so the model cannot skip any of them:
+
+- **Identify the type of text**: `document_type`, the first key, a lower_snake_case label with `unknown` as the escape hatch for unreadable input instead of a refusal.
+- **Extract into a consistent JSON block**: exactly one fenced `json` block with seven fixed top-level keys in a fixed order; `entities` is open so a receipt and a medical report can carry different fields, with normalised dates, times and currencies, and `missing_fields` makes absence visible instead of silently dropped.
+- **Flag uncertainty with a confidence score**: every value is `{"value", "confidence"}` on a defined 0 to 1 scale, and `uncertain_fields` lists every leaf below 0.8 with a dot path and a reason.
+
+Follow-up questions are detected per turn by the prompt itself and answered in prose grounded in the last extraction, quoting the confidence when the field was flagged.
+
+OpenAI Structured Outputs (`response_format: json_schema`) would guarantee valid JSON but was deliberately not used: it applies to every turn, so follow-ups could no longer be answered in prose, and strict mode forbids the open `entities` keys. The assignment also frames the task as a system prompt, so format compliance comes from the prompt: fixed keys, explicit bans on the real failure modes (prose around the block, two blocks, comments, trailing commas) and a worked example.
 
 ## Design decisions
 
-- **Prompt injected server-side, not in Open WebUI.** The contract holds for every client of the middleware, and it cannot be edited away in the UI. It is prepended as the first message, so a per-model system prompt configured in Open WebUI still arrives and is simply subordinate. Being first and byte-identical on every request also makes it a cacheable prefix for OpenAI's [prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching), so the roughly 1,500 prompt tokens it costs are billed at the cached rate from the second request on; `cached_tokens` in the completion log shows the hit.
-- **Streaming is a byte passthrough.** Upstream SSE chunks are relayed as they arrive rather than parsed and re-serialised, so time to first token matches the upstream and no OpenAI field is accidentally dropped. Usage is read off the stream in parallel for logging, which is why `stream_options.include_usage` is injected when the caller did not ask for it.
-- **Failures stay in the OpenAI error shape.** Upstream 4xx and 5xx keep their status, message and type; connect errors become 502 and timeouts 504; a 200 with an unparseable body is a 502 rather than a crash. A failure that happens mid-stream cannot change the status code, so it is emitted as an SSE error event followed by `[DONE]`, which Open WebUI renders instead of hanging.
-- **Two kinds of health.** `/health` answers whether the process is alive, `/ready` whether it can actually serve traffic. Compose gates Open WebUI on the container healthcheck so the model list is never fetched from a dead middleware.
-- **Background generation disabled.** Open WebUI 0.6.5 generates chat titles, tags, autocomplete and search queries through the same chat endpoint, which the extractor prompt would answer with JSON. Those features are turned off in compose so the behaviour is predictable; the trade-off is noted rather than hidden.
-- **Config is environment-only and persistent config is off.** `OPENAI_API_BASE_URL` is an Open WebUI `ConfigVar` that would otherwise be frozen at first boot, which makes a container rebuild silently ignore `.env`.
-- **PostgreSQL over SQLite.** The assignment asks for a database service, and it also matches how Open WebUI is meant to run outside single-user setups.
+- **Prompt injected server-side, not in Open WebUI.** The contract holds for every client and cannot be edited away in the UI. It is prepended as the first message, so a system prompt configured in Open WebUI still arrives and is simply subordinate. Being first and byte-identical on every request also makes it a cacheable prefix for OpenAI's [prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching): the roughly 1,500 prompt tokens it costs are billed at the cached rate from the second request on, and `cached_tokens` in the completion log shows the hit (1,408 of 1,523 in a live run).
+- **Streaming is a byte passthrough.** Upstream SSE chunks are relayed as they arrive rather than parsed and re-serialised, so time to first token matches the upstream and no OpenAI field is accidentally dropped.
+- **Failures stay in the OpenAI error shape.** Upstream 4xx and 5xx keep their status, message and type; connect errors become 502 and timeouts 504; a 200 with an unparseable body is a 502 rather than a crash. A mid-stream failure cannot change the status code, so it is emitted as an SSE error event followed by `[DONE]`, which Open WebUI renders instead of hanging.
+- **Two kinds of health.** `/health` answers whether the process is alive, `/ready` whether it can serve traffic. Compose gates Open WebUI on the container healthcheck so the model list is never fetched from a dead middleware.
+- **Background generation disabled.** Open WebUI 0.6.5 generates chat titles, tags, autocomplete and search queries through the same chat endpoint, which the extractor prompt would answer with JSON. Those features are turned off in compose.
+- **Config is environment-only and persistent config is off.** `OPENAI_API_BASE_URL` is an Open WebUI `ConfigVar` that would otherwise be frozen at first boot, making a rebuild silently ignore `.env`.
+- **PostgreSQL over SQLite.** The assignment asks for a database service, and it matches how Open WebUI runs outside single-user setups.
 
 ## Development
 
-### Tests without installing anything
-
 ```bash
-make test-docker           # or: docker build --target test --no-cache-filter test --progress=plain middleware
-```
-
-The image has a `test` stage that runs the linter, the type checker and the unit tests with the dev dependencies, then stops. It exits non-zero on any failure and leaves nothing on the host. `--no-cache-filter test` makes Docker rerun the tests instead of printing `CACHED` on a second run. CI runs this same stage. `make` is a convenience throughout; every target is the one-line command shown next to it.
-
-### Tests on the host
-
-Running them directly needs [uv](https://docs.astral.sh/uv/), which creates the virtual environment from `middleware/uv.lock` and downloads Python 3.12 itself if no suitable interpreter (3.11 or newer) is installed. Nothing is installed globally.
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh                                     # macOS, Linux
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
-
-make test                         # from the repo root
-cd middleware && uv run pytest    # the same, without make
-```
-
-The first run syncs the environment, then 42 tests run in about a second. Coverage is printed with missing lines and the run fails below 90%. OpenAI is mocked with `respx`, so the tests need no key and no network. Useful variants:
-
-```bash
-uv run pytest -v                                  # one line per test
-uv run pytest tests/test_chat_completions.py      # one file
-uv run pytest -k timeout                          # tests matching a keyword
-```
-
-| File | Covers |
-| --- | --- |
-| `test_prompt.py` | Prompt is prepended, a caller's system message survives, caller messages are not mutated, `SYSTEM_PROMPT.md` matches the shipped prompt. |
-| `test_chat_completions.py` | Non-streaming and streaming passthrough, `stream_options` handling, the `chat.request` log line, upstream 400/401/429/500 relayed with status, timeout to 504, connect error to 502, non-JSON success body to 502, mid-stream drop and mid-stream timeout to SSE error plus `[DONE]`, invalid body rejected. |
-| `test_streaming.py` | Usage parsed from the final SSE event, events split across chunks, malformed lines ignored. |
-| `test_models_and_health.py` | Model allowlist, `/health` never calls upstream, `/ready` states, status page, request id echoed or generated, lifecycle and failure events in order, text log renderer. |
-| `test_config.py` | Comma-separated models, log level validated, key required, key never appears in repr. |
-
-### Lint, types and the full check
-
-```bash
+make test-docker   # tests, lint and types inside the image's test stage; nothing installed on the host
+make test          # the same on the host via uv (cd middleware && uv run pytest)
 make lint          # ruff check, ruff format --check
 make typecheck     # mypy --strict
-make check         # all three, what CI runs
+make check         # all of the above, what CI runs
 ```
 
-CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu 24.04 and 3.12 on macOS, and writes a test and coverage report into each run's summary with the JUnit and coverage XML attached as artifacts. It also lints the shell scripts and the Markdown, runs the Docker `test` stage, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
+Host runs need [uv](https://docs.astral.sh/uv/), which creates the environment from `middleware/uv.lock` and fetches Python 3.12 itself if no 3.11+ is installed. 43 tests run in about a second; OpenAI is mocked with `respx`, so no key and no network. Coverage is printed and the run fails below 90%.
 
-### Running the middleware without Docker
+CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu 24.04 and 3.12 on macOS, lints the shell scripts and the Markdown, runs the Docker `test` stage and checks the built image serves `/health`. Optional hooks: `uv run --project middleware pre-commit install`.
+
+Without Docker:
 
 ```bash
 cd middleware
 OPENAI_API_KEY=sk-... uv run uvicorn app.main:create_app --factory --reload
 ```
-
-It listens on <http://localhost:8000> with the status page at `/` and the OpenAPI docs at `/docs`. The other settings in `.env.example` can be passed the same way.
