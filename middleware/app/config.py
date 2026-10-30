@@ -1,5 +1,4 @@
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
@@ -37,8 +36,3 @@ class Settings(BaseSettings):
             msg = f"LOG_LEVEL must be one of {sorted(logging.getLevelNamesMapping())}"
             raise ValueError(msg)
         return level
-
-
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()

@@ -5,7 +5,7 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.config import Settings, get_settings
+from app.config import Settings
 from app.logging_config import configure_logging, get_logger
 from app.middleware import RequestContextMiddleware
 from app.prompt import load_system_prompt
@@ -29,7 +29,7 @@ async def upstream_error_handler(_: Request, exc: Exception) -> JSONResponse:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or get_settings()
+    settings = settings or Settings()
     configure_logging(settings.log_level, json=settings.log_json)
 
     @asynccontextmanager

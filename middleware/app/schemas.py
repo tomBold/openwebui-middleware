@@ -15,7 +15,7 @@ class ChatCompletionRequest(BaseModel):
 class ErrorDetail(BaseModel):
     message: str
     type: str
-    code: int | str | None = None
+    code: int
 
 
 class ErrorResponse(BaseModel):

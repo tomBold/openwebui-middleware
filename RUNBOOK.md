@@ -68,7 +68,7 @@ Expect two lines, one per message, with `"messages_in": 1, "messages_out": 2` an
 make test-docker          # or: docker build --target test --no-cache-filter test --progress=plain middleware
 ```
 
-No local Python is used. Expect `42 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
+No local Python is used. Expect `38 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
 
 ## 6. Stop
 

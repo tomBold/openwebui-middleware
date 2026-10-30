@@ -189,7 +189,7 @@ make typecheck     # mypy --strict
 make check         # all of the above, what CI runs
 ```
 
-Host runs need [uv](https://docs.astral.sh/uv/), which creates the environment from `middleware/uv.lock` and fetches Python 3.12 itself if no 3.11+ is installed. 43 tests run in about a second; OpenAI is mocked with `respx`, so no key and no network. Coverage is printed and the run fails below 90%.
+Host runs need [uv](https://docs.astral.sh/uv/), which creates the environment from `middleware/uv.lock` and fetches Python 3.12 itself if no 3.11+ is installed. 39 tests run in about a second; OpenAI is mocked with `respx`, so no key and no network. Coverage is printed and the run fails below 90%.
 
 CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu 24.04 and 3.12 on macOS, lints the shell scripts and the Markdown, runs the Docker `test` stage and checks the built image serves `/health`. Optional hooks: `uv run --project middleware pre-commit install`.
 

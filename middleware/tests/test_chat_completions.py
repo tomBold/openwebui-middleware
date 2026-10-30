@@ -17,15 +17,15 @@ COMPLETION = {
     "choices": [{"index": 0, "message": {"role": "assistant", "content": "{}"}}],
     "usage": {"prompt_tokens": 11, "completion_tokens": 3, "total_tokens": 14},
 }
-USAGE_CHUNK = (
-    b'data: {"id":"chatcmpl-1","choices":[],"usage":'
-    b'{"prompt_tokens":11,"completion_tokens":2,"total_tokens":13}}\n\n'
-)
 STREAM_CHUNKS = [
     b'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"He"}}]}\n\n',
     b'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"llo"}}]}\n\n',
-    USAGE_CHUNK,
+    b'data: {"usage":{"prompt_tokens":11,"completion_tokens":2,"total_tokens":13}}\n\n',
     b"data: [DONE]\n\n",
+]
+TRANSPORT_ERRORS = [
+    (httpx.ReadTimeout("too slow"), {"code": 504, "type": "upstream_timeout"}),
+    (httpx.ConnectError("refused"), {"code": 502, "type": "upstream_unavailable"}),
 ]
 
 
@@ -38,12 +38,21 @@ def forwarded_body(route: respx.Route) -> dict[str, Any]:
     return body
 
 
+async def stream_events(client: AsyncClient, payload: dict[str, Any]) -> list[bytes]:
+    async with client.stream("POST", "/v1/chat/completions", json=payload) as response:
+        body = b"".join([chunk async for chunk in response.aiter_bytes()])
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    return [event for event in body.split(b"\n\n") if event]
+
+
 async def test_non_streaming_injects_prompt_and_returns_completion(
     client: AsyncClient, mock_upstream: respx.MockRouter
 ) -> None:
     route = mock_upstream.post(CHAT_URL).respond(json=COMPLETION)
 
-    response = await client.post("/v1/chat/completions", json=chat_payload(temperature=0.2))
+    with structlog.testing.capture_logs() as logs:
+        response = await client.post("/v1/chat/completions", json=chat_payload(temperature=0.2))
 
     assert response.status_code == 200
     assert response.json() == COMPLETION
@@ -51,20 +60,11 @@ async def test_non_streaming_injects_prompt_and_returns_completion(
     assert forwarded["messages"] == [{"role": "system", "content": SYSTEM_PROMPT}, USER_MESSAGE]
     assert forwarded["temperature"] == 0.2
     assert "stream_options" not in forwarded
-
-
-async def test_request_log_records_the_injection(
-    client: AsyncClient, mock_upstream: respx.MockRouter
-) -> None:
-    mock_upstream.post(CHAT_URL).respond(json=COMPLETION)
-
-    with structlog.testing.capture_logs() as logs:
-        await client.post("/v1/chat/completions", json=chat_payload())
-
-    [entry] = [log for log in logs if log["event"] == "chat.request"]
-    assert entry["messages_in"] == 1
-    assert entry["messages_out"] == 2
-    assert entry["system_prompt_injected"] is True
+    events = {log["event"]: log for log in logs}
+    assert events["chat.request"]["messages_in"] == 1
+    assert events["chat.request"]["messages_out"] == 2
+    assert events["chat.request"]["system_prompt_injected"] is True
+    assert events["chat.completed"]["prompt_tokens"] == 11
 
 
 async def test_streaming_relays_upstream_events_verbatim(
@@ -72,17 +72,16 @@ async def test_streaming_relays_upstream_events_verbatim(
 ) -> None:
     route = mock_upstream.post(CHAT_URL).mock(return_value=sse_response(STREAM_CHUNKS))
 
-    async with client.stream(
-        "POST", "/v1/chat/completions", json=chat_payload(stream=True)
-    ) as response:
-        body = b"".join([chunk async for chunk in response.aiter_bytes()])
+    with structlog.testing.capture_logs() as logs:
+        events = await stream_events(client, chat_payload(stream=True))
 
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/event-stream")
-    assert body == b"".join(STREAM_CHUNKS)
+    assert b"\n\n".join(events) + b"\n\n" == b"".join(STREAM_CHUNKS)
     forwarded = forwarded_body(route)
     assert forwarded["stream_options"] == {"include_usage": True}
     assert forwarded["messages"][0]["content"] == SYSTEM_PROMPT
+    [completed] = [log for log in logs if log["event"] == "upstream.stream_completed"]
+    assert completed["prompt_tokens"] == 11
+    assert completed["completion_tokens"] == 2
 
 
 async def test_streaming_preserves_caller_stream_options(
@@ -90,77 +89,60 @@ async def test_streaming_preserves_caller_stream_options(
 ) -> None:
     route = mock_upstream.post(CHAT_URL).mock(return_value=sse_response(STREAM_CHUNKS))
 
-    async with client.stream(
-        "POST",
-        "/v1/chat/completions",
-        json=chat_payload(stream=True, stream_options={"chunk_size": 2}),
-    ) as response:
-        await response.aread()
+    await stream_events(client, chat_payload(stream=True, stream_options={"chunk_size": 2}))
 
     assert forwarded_body(route)["stream_options"] == {"chunk_size": 2, "include_usage": True}
 
 
+@pytest.mark.parametrize(("exc", "expected"), TRANSPORT_ERRORS)
 async def test_stream_failure_mid_flight_emits_error_event_and_done(
-    client: AsyncClient, mock_upstream: respx.MockRouter
+    client: AsyncClient,
+    mock_upstream: respx.MockRouter,
+    exc: httpx.HTTPError,
+    expected: dict[str, Any],
 ) -> None:
-    mock_upstream.post(CHAT_URL).mock(
-        return_value=sse_response(STREAM_CHUNKS[:1], httpx.ReadError("connection lost"))
-    )
+    mock_upstream.post(CHAT_URL).mock(return_value=sse_response(STREAM_CHUNKS[:1], exc))
 
-    async with client.stream(
-        "POST", "/v1/chat/completions", json=chat_payload(stream=True)
-    ) as response:
-        body = b"".join([chunk async for chunk in response.aiter_bytes()])
+    events = await stream_events(client, chat_payload(stream=True))
 
-    events = [event for event in body.split(b"\n\n") if event]
-    error = json.loads(events[1].removeprefix(b"data: "))
-    assert response.status_code == 200
-    assert error["error"]["type"] == "upstream_unavailable"
+    assert events[0] == STREAM_CHUNKS[0].strip()
+    error = json.loads(events[1].removeprefix(b"data: "))["error"]
+    assert {key: error[key] for key in expected} == expected
     assert events[-1] == b"data: [DONE]"
 
 
-async def test_stream_timeout_mid_flight_is_reported_as_timeout(
-    client: AsyncClient, mock_upstream: respx.MockRouter
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize(("exc", "expected"), TRANSPORT_ERRORS)
+async def test_transport_failure_before_response_is_typed(
+    client: AsyncClient,
+    mock_upstream: respx.MockRouter,
+    exc: httpx.HTTPError,
+    expected: dict[str, Any],
+    stream: bool,  # noqa: FBT001
 ) -> None:
-    mock_upstream.post(CHAT_URL).mock(
-        return_value=sse_response(STREAM_CHUNKS[:1], httpx.ReadTimeout("too slow"))
-    )
+    mock_upstream.post(CHAT_URL).mock(side_effect=exc)
 
-    async with client.stream(
-        "POST", "/v1/chat/completions", json=chat_payload(stream=True)
-    ) as response:
-        body = b"".join([chunk async for chunk in response.aiter_bytes()])
+    response = await client.post("/v1/chat/completions", json=chat_payload(stream=stream))
 
-    error = json.loads(body.split(b"\n\n")[1].removeprefix(b"data: "))
-    assert error["error"] == {
-        "message": "Upstream request timed out",
-        "type": "upstream_timeout",
-        "code": 504,
-    }
+    assert response.status_code == expected["code"]
+    assert response.json()["error"]["type"] == expected["type"]
 
 
-async def test_upstream_non_json_success_body_is_a_bad_gateway(
-    client: AsyncClient, mock_upstream: respx.MockRouter
-) -> None:
-    mock_upstream.post(CHAT_URL).respond(text="<html>not json</html>")
-
-    response = await client.post("/v1/chat/completions", json=chat_payload())
-
-    assert response.status_code == 502
-    assert response.json()["error"]["type"] == "upstream_unavailable"
-    assert "<html>not json</html>" in response.json()["error"]["message"]
-
-
-@pytest.mark.parametrize("status_code", [400, 401, 429, 500])
+@pytest.mark.parametrize(
+    ("status_code", "stream"), [(400, False), (401, False), (429, True), (500, False)]
+)
 async def test_upstream_error_status_is_relayed(
-    client: AsyncClient, mock_upstream: respx.MockRouter, status_code: int
+    client: AsyncClient,
+    mock_upstream: respx.MockRouter,
+    status_code: int,
+    stream: bool,  # noqa: FBT001
 ) -> None:
     mock_upstream.post(CHAT_URL).respond(
         status_code=status_code,
         json={"error": {"message": "upstream says no", "type": "invalid_request_error"}},
     )
 
-    response = await client.post("/v1/chat/completions", json=chat_payload())
+    response = await client.post("/v1/chat/completions", json=chat_payload(stream=stream))
 
     assert response.status_code == status_code
     assert response.json()["error"]["message"] == "upstream says no"
@@ -182,39 +164,17 @@ async def test_upstream_error_without_json_body_is_relayed(
     }
 
 
-async def test_upstream_timeout_returns_gateway_timeout(
-    client: AsyncClient, mock_upstream: respx.MockRouter
+@pytest.mark.parametrize("body", [{"text": "<html>not json</html>"}, {"json": []}])
+async def test_upstream_success_without_json_object_is_a_bad_gateway(
+    client: AsyncClient, mock_upstream: respx.MockRouter, body: dict[str, Any]
 ) -> None:
-    mock_upstream.post(CHAT_URL).mock(side_effect=httpx.ReadTimeout("too slow"))
-
-    response = await client.post("/v1/chat/completions", json=chat_payload())
-
-    assert response.status_code == 504
-    assert response.json()["error"]["type"] == "upstream_timeout"
-
-
-async def test_upstream_connection_error_returns_bad_gateway(
-    client: AsyncClient, mock_upstream: respx.MockRouter
-) -> None:
-    mock_upstream.post(CHAT_URL).mock(side_effect=httpx.ConnectError("refused"))
+    mock_upstream.post(CHAT_URL).respond(**body)
 
     response = await client.post("/v1/chat/completions", json=chat_payload())
 
     assert response.status_code == 502
     assert response.json()["error"]["type"] == "upstream_unavailable"
-
-
-async def test_streaming_upstream_error_is_relayed_before_streaming(
-    client: AsyncClient, mock_upstream: respx.MockRouter
-) -> None:
-    mock_upstream.post(CHAT_URL).respond(
-        status_code=429, json={"error": {"message": "rate limited", "type": "rate_limit_error"}}
-    )
-
-    response = await client.post("/v1/chat/completions", json=chat_payload(stream=True))
-
-    assert response.status_code == 429
-    assert response.json()["error"]["type"] == "rate_limit_error"
+    assert response.json()["error"]["message"].startswith("Upstream returned a non-JSON body")
 
 
 async def test_invalid_request_body_is_rejected(client: AsyncClient) -> None:
