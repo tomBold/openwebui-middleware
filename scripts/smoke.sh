@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 port="${MIDDLEWARE_PORT:-8000}"
 base="http://localhost:${port}"
 
@@ -32,7 +40,12 @@ if ! curl -fsS "${webui}/health" >/dev/null 2>&1; then
 fi
 
 echo "POST ${webui}/api/chat/completions (through Open WebUI, no system prompt in the request)"
-token="$(curl -fsS -X POST "${webui}/api/v1/auths/signin" -H "Content-Type: application/json" -d '{"email":"","password":""}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)"
+signin="$(curl -sS -X POST "${webui}/api/v1/auths/signin" -H "Content-Type: application/json" -d '{"email":"","password":""}')"
+token="$(printf '%s' "${signin}" | grep -o '"token":"[^"]*"' | cut -d'"' -f4 || true)"
+if [ -z "${token}" ]; then
+  echo "Open WebUI sign-in failed (this step needs WEBUI_AUTH=false): ${signin}"
+  exit 1
+fi
 reply="$(curl -fsS "${webui}/api/chat/completions" \
   -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" \
   -d "{\"model\":\"${model}\",\"stream\":false,\"messages\":[${sample}]}")"

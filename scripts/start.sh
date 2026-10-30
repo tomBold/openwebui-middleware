@@ -11,10 +11,10 @@ fi
 
 if grep -q '^OPENAI_API_KEY=sk-replace-me$' .env; then
   key="${OPENAI_API_KEY:-}"
-  if [ -z "$key" ]; then
+  while [ -z "$key" ]; do
     read -rsp "OpenAI API key: " key
     echo
-  fi
+  done
   tmp=$(mktemp)
   sed "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=${key}|" .env >"$tmp" && mv "$tmp" .env
 fi

@@ -25,8 +25,11 @@ services:
       OPENAI_MODELS: ${OPENAI_MODELS:-gpt-6-luna,gpt-5.6-luna,gpt-5.4-mini}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_JSON: ${LOG_JSON:-true}
+      UPSTREAM_CONNECT_TIMEOUT: ${UPSTREAM_CONNECT_TIMEOUT:-10}
+      UPSTREAM_READ_TIMEOUT: ${UPSTREAM_READ_TIMEOUT:-120}
+      READINESS_TIMEOUT: ${READINESS_TIMEOUT:-5}
     ports:
-      - "${MIDDLEWARE_PORT:-8000}:8000"
+      - "127.0.0.1:${MIDDLEWARE_PORT:-8000}:8000"
     restart: unless-stopped
 
   open-webui:
@@ -42,12 +45,11 @@ services:
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-local-dev-secret}
       ENABLE_TITLE_GENERATION: "false"
       ENABLE_TAGS_GENERATION: "false"
-      ENABLE_FOLLOW_UP_GENERATION: "false"
       ENABLE_AUTOCOMPLETE_GENERATION: "false"
       ENABLE_SEARCH_QUERY_GENERATION: "false"
       ENABLE_RETRIEVAL_QUERY_GENERATION: "false"
     ports:
-      - "${OPEN_WEBUI_PORT:-3000}:8080"
+      - "127.0.0.1:${OPEN_WEBUI_PORT:-3000}:8080"
     volumes:
       - open-webui-data:/app/backend/data
     depends_on:
