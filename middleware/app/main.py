@@ -19,7 +19,9 @@ log = get_logger(__name__)
 async def upstream_error_handler(_: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, UpstreamError):
         raise exc
-    log.warning("upstream.error", status_code=exc.status_code, error=exc.message)
+    log.warning(
+        "upstream.error", status_code=exc.status_code, error_type=exc.error_type, error=exc.message
+    )
     body = ErrorResponse(
         error=ErrorDetail(message=exc.message, type=exc.error_type, code=exc.status_code)
     )

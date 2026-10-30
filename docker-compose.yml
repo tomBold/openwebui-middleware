@@ -24,6 +24,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       OPENAI_MODELS: ${OPENAI_MODELS:-gpt-6-luna,gpt-5.6-luna,gpt-5.4-mini}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
     ports:
       - "${MIDDLEWARE_PORT:-8000}:8000"
     restart: unless-stopped

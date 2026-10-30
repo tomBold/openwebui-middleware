@@ -90,7 +90,28 @@ Ask a follow-up such as "what was the total?" and the reply is prose referring t
 
 ![A follow-up question answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
 
-`docker compose logs -f middleware` shows one structured JSON line per lifecycle event, all carrying the same `request_id`: request start, upstream first byte, stream completion with token usage, request completion with duration.
+### Reading the logs
+
+`docker compose logs -f middleware` (or `make logs`) prints one structured line per lifecycle event. Every line for one request carries the same `request_id`, which is also returned to the caller as the `X-Request-ID` header. A streamed chat produces:
+
+| Event | Fields | Meaning |
+| --- | --- | --- |
+| `request.started` | `method`, `path` | Request accepted |
+| `chat.request` | `model`, `stream`, `messages_in`, `messages_out`, `system_prompt_injected` | Prompt prepended; one more message leaves than arrived |
+| `upstream.first_byte` | `ttft_ms` | OpenAI started answering; time to first token |
+| `upstream.stream_completed` | `duration_ms`, `prompt_tokens`, `completion_tokens`, `total_tokens` | Stream finished, usage read off the final chunk |
+| `request.completed` | `status_code`, `duration_ms` | Response fully sent |
+
+Failures get their own events at `warning` level and never hide the status: `upstream.error` (`status_code`, `error_type`, `error`) for an OpenAI 4xx or 5xx relayed as is, a 502 for a connection failure or a 504 for a timeout; `upstream.stream_failed` when the connection drops mid-stream, after which the client receives an SSE error event and `[DONE]`; `readiness.failed` when `/ready` cannot reach OpenAI and answers 503.
+
+Logs are JSON by default so they can be shipped anywhere. For reading them as text, set `LOG_JSON=false` in `.env` and restart:
+
+```text
+04:51:11.109 [info     ] request.started      method=POST path=/v1/chat/completions request_id=c0e82dd3...
+04:51:11.114 [info     ] chat.request         messages_in=1 messages_out=2 model=gpt-5.4-mini stream=True system_prompt_injected=True request_id=c0e82dd3...
+04:51:11.462 [warning  ] upstream.error       error='Incorrect API key provided: sk-inval*********pose.' error_type=invalid_request_error status_code=401 request_id=c0e82dd3...
+04:51:11.468 [info     ] request.completed    duration_ms=361 status_code=401 request_id=c0e82dd3...
+```
 
 ### Verification tooling: the middleware address
 
