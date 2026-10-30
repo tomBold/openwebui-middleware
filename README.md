@@ -3,24 +3,15 @@
 [![CI](https://github.com/tomBold/openwebui-middleware/actions/workflows/ci.yml/badge.svg)](https://github.com/tomBold/openwebui-middleware/actions/workflows/ci.yml)
 
 ```text
-              _______                             \_v_/
-           .-'       '-.
-        ___|___________|___
-           |  o     o  |          Stands in the middle of the field,
-           |     <     |          pins a system prompt on every request
-    .------|   \___/   |------.   that flies past, and keeps the crows
-   /       '-----------'       \  off your JSON.
-  '----.   /|  |  |  |\   .----'
-        \ / |  |  |  | \ /
-         '  |__|__|__|  '
-            |  |  |  |
-            '--+--+--'
-               |  |
-               |  |
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   /\___/\
+   | o o |      Sits in the middle of everything, as cats do.
+  __\_^_/__     Puts a system prompt on every request that
+ (__/   \__)    passes, and keeps the mice out of your JSON.
+  _|  .  |_
+ (__\___/__)
 ```
 
-<sub>Drawn for this project as a nod to [The Scarecrow's ASCII galleries](https://www.asciiart.eu/collections/best-of-the-scarecrows-gif-gallery-1-1) (Glen Robbins, 1994).</sub>
+<sub>The cat is a classic of the ASCII tradition, artist unknown. Found via [ASCII Art Archive](https://www.asciiart.eu), the home of classic text art.</sub>
 
 Open WebUI 0.6.5 backed by PostgreSQL, talking to OpenAI through a FastAPI middleware that injects a structured-extraction system prompt into every chat request and streams the response straight back.
 
