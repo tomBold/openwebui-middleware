@@ -192,7 +192,7 @@ make typecheck     # mypy --strict
 make check         # all three, what CI runs
 ```
 
-CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu and 3.12 on macOS, and writes a test and coverage report into each run's summary with the JUnit and coverage XML attached as artifacts. It also lints the shell scripts and the Markdown, runs the Docker `test` stage, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
+CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu 24.04 and 3.12 on macOS, and writes a test and coverage report into each run's summary with the JUnit and coverage XML attached as artifacts. It also lints the shell scripts and the Markdown, runs the Docker `test` stage, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
 
 ### Running the middleware without Docker
 
