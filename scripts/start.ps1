@@ -9,9 +9,12 @@ if (-not (Test-Path .env)) {
 }
 
 if ((Get-Content .env -Raw) -match "OPENAI_API_KEY=sk-replace-me") {
-    $secure = Read-Host "OpenAI API key" -AsSecureString
-    $key = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+    $key = $env:OPENAI_API_KEY
+    if (-not $key) {
+        $secure = Read-Host "OpenAI API key" -AsSecureString
+        $key = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+    }
     (Get-Content .env) -replace "^OPENAI_API_KEY=.*", "OPENAI_API_KEY=$key" | Set-Content .env
 }
 

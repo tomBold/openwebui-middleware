@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.config import DEFAULT_PROMPT_PATH
 from app.prompt import inject_system_prompt, load_system_prompt
 
@@ -43,6 +45,7 @@ def test_load_system_prompt_strips_surrounding_whitespace(tmp_path: Path) -> Non
     assert load_system_prompt(path) == "PROMPT"
 
 
+@pytest.mark.skipif(not SYSTEM_PROMPT_DOC.exists(), reason="needs the repository root")
 def test_system_prompt_doc_embeds_the_shipped_prompt() -> None:
     doc = SYSTEM_PROMPT_DOC.read_text(encoding="utf-8")
     prompt = load_system_prompt(DEFAULT_PROMPT_PATH)

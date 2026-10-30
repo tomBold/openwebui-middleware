@@ -11,6 +11,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 
+FROM builder AS test
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen
+RUN uv run ruff check . && uv run ruff format --check . && uv run mypy . && uv run pytest
+
 FROM python:3.12-slim-bookworm AS runtime
 
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1

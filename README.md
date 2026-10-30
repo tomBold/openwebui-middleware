@@ -33,7 +33,9 @@ git clone <repo-url> && cd openwebui-middleware
 ./scripts/start.sh            # Windows: powershell -File scripts/start.ps1
 ```
 
-The script creates `.env` from `.env.example`, prompts for the API key, builds and starts the three services, and waits until the middleware reports ready. Open <http://localhost:3000>. If something on your machine already uses port 3000 or 8000, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env`; the script prints the final URLs.
+The script creates `.env` from `.env.example`, prompts for the API key (or takes it from `OPENAI_API_KEY` in the environment and asks nothing), builds and starts the three services, and waits until the middleware reports ready. Open <http://localhost:3000>. If something on your machine already uses port 3000 or 8000, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env`; the script prints the final URLs.
+
+[RUNBOOK.md](RUNBOOK.md) is the same journey as a checklist: each step non-interactive, with the expected output and a troubleshooting table.
 
 Manual equivalent:
 
@@ -139,14 +141,22 @@ Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compa
 
 ## Development
 
-Running the stack needs only Docker. Running the tests and linters on your machine needs [uv](https://docs.astral.sh/uv/), which creates the virtual environment from `middleware/uv.lock` and downloads Python 3.12 itself if no suitable interpreter (3.11 or newer) is installed. Nothing is installed globally.
+### Tests without installing anything
+
+```bash
+make test-docker           # or: docker build --target test --progress=plain middleware
+```
+
+The image has a `test` stage that runs the linter, the type checker and the unit tests with the dev dependencies, then stops. It exits non-zero on any failure and leaves nothing on the host. CI runs this same stage.
+
+### Tests on the host
+
+Running them directly needs [uv](https://docs.astral.sh/uv/), which creates the virtual environment from `middleware/uv.lock` and downloads Python 3.12 itself if no suitable interpreter (3.11 or newer) is installed. Nothing is installed globally.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh                                     # macOS, Linux
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 ```
-
-### Running the tests
 
 ```bash
 make test                  # from the repo root
@@ -177,7 +187,7 @@ make typecheck     # mypy --strict
 make check         # all three, what CI runs
 ```
 
-CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu and 3.12 on macOS, lints the shell scripts, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
+CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu and 3.12 on macOS, lints the shell scripts, runs the Docker `test` stage, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
 
 ### Running the middleware without Docker
 
