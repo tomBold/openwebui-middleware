@@ -74,7 +74,11 @@ curl -N localhost:8000/v1/chat/completions \
   -d '{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
 ```
 
-In the UI: open <http://localhost:3000>, pick `gpt-6-luna`, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured log line per lifecycle event, including the injected prompt, time to first token, and token usage.
+In the UI: open <http://localhost:3000>, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured log line per lifecycle event, including the injected prompt, time to first token, and token usage.
+
+![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
+
+![A follow-up question answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
 
 ## How it works
 
