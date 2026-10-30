@@ -53,9 +53,10 @@ jobs:
         run: brew install shellcheck
       - name: Lint shell scripts
         run: shellcheck scripts/*.sh
-      - name: Verify every tracked file is valid UTF-8
+      - name: Verify every tracked text file is valid UTF-8
         run: |
           git ls-files -z | while IFS= read -r -d '' file; do
+            git grep -Iq --no-index -e '' -- "$file" || continue
             iconv -f UTF-8 -t UTF-8 "$file" >/dev/null || { echo "not UTF-8: $file"; exit 1; }
           done
 
