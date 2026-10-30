@@ -41,7 +41,14 @@ def test_usage_fields_defaults_to_none_without_usage() -> None:
         "prompt_tokens": None,
         "completion_tokens": None,
         "total_tokens": None,
+        "cached_tokens": None,
     }
+
+
+def test_usage_fields_reports_cached_prompt_tokens() -> None:
+    usage = {"prompt_tokens": 1513, "prompt_tokens_details": {"cached_tokens": 1408}}
+
+    assert usage_fields(usage)["cached_tokens"] == 1408
 
 
 def test_sse_error_event_is_a_single_openai_shaped_event() -> None:

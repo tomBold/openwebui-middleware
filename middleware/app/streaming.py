@@ -19,7 +19,9 @@ USAGE_FIELDS = ("prompt_tokens", "completion_tokens", "total_tokens")
 
 def usage_fields(usage: dict[str, Any] | None) -> dict[str, Any]:
     usage = usage or {}
-    return {field: usage.get(field) for field in USAGE_FIELDS}
+    fields = {field: usage.get(field) for field in USAGE_FIELDS}
+    fields["cached_tokens"] = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    return fields
 
 
 def sse_error_event(status_code: int, message: str, error_type: str) -> bytes:

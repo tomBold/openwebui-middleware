@@ -124,8 +124,8 @@ Ask a follow-up such as "what is the salary range?" and the reply is prose refer
 | `request.started` | `method`, `path` | Request accepted |
 | `chat.request` | `model`, `stream`, `messages_in`, `messages_out`, `system_prompt_injected` | Prompt prepended; one more message leaves than arrived |
 | `upstream.first_byte` | `ttft_ms` | OpenAI started answering; time to first token |
-| `upstream.stream_completed` | `duration_ms`, `prompt_tokens`, `completion_tokens`, `total_tokens` | Stream finished, usage read off the final chunk |
-| `chat.completed` | `prompt_tokens`, `completion_tokens`, `total_tokens` | Non-streaming equivalent of the line above |
+| `upstream.stream_completed` | `duration_ms`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `cached_tokens` | Stream finished, usage read off the final chunk |
+| `chat.completed` | `prompt_tokens`, `completion_tokens`, `total_tokens`, `cached_tokens` | Non-streaming equivalent of the line above |
 | `request.completed` | `status_code`, `duration_ms` | Response fully sent |
 
 Failures get their own events at `warning` level and never hide the status: `upstream.error` (`status_code`, `error_type`, `error`) when OpenAI answers 4xx or 5xx, which is relayed with the same status, message and type in the OpenAI error shape, or when the connection fails (502) or times out (504); `upstream.stream_failed` (`error_type`, `error`) when the connection drops mid-stream, after which the client receives an SSE error event carrying the same 502 or 504 classification, then `[DONE]`; `readiness.failed` when `/ready` cannot reach OpenAI and answers 503.
@@ -203,7 +203,7 @@ The prompt and the reasoning behind it, with the edge cases it was tested agains
 
 ## Design decisions
 
-- **Prompt injected server-side, not in Open WebUI.** The contract holds for every client of the middleware, and it cannot be edited away in the UI. It is prepended as the first message, so a per-model system prompt configured in Open WebUI still arrives and is simply subordinate.
+- **Prompt injected server-side, not in Open WebUI.** The contract holds for every client of the middleware, and it cannot be edited away in the UI. It is prepended as the first message, so a per-model system prompt configured in Open WebUI still arrives and is simply subordinate. Being first and byte-identical on every request also makes it a cacheable prefix for OpenAI's [prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching), so the roughly 1,500 prompt tokens it costs are billed at the cached rate from the second request on; `cached_tokens` in the completion log shows the hit.
 - **Streaming is a byte passthrough.** Upstream SSE chunks are relayed as they arrive rather than parsed and re-serialised, so time to first token matches the upstream and no OpenAI field is accidentally dropped. Usage is read off the stream in parallel for logging, which is why `stream_options.include_usage` is injected when the caller did not ask for it.
 - **Failures stay in the OpenAI error shape.** Upstream 4xx and 5xx keep their status, message and type; connect errors become 502 and timeouts 504; a 200 with an unparseable body is a 502 rather than a crash. A failure that happens mid-stream cannot change the status code, so it is emitted as an SSE error event followed by `[DONE]`, which Open WebUI renders instead of hanging.
 - **Two kinds of health.** `/health` answers whether the process is alive, `/ready` whether it can actually serve traffic. Compose gates Open WebUI on the container healthcheck so the model list is never fetched from a dead middleware.
