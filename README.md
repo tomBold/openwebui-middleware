@@ -3,15 +3,22 @@
 [![CI](https://github.com/tomBold/openwebui-middleware/actions/workflows/ci.yml/badge.svg)](https://github.com/tomBold/openwebui-middleware/actions/workflows/ci.yml)
 
 ```text
-   /\___/\
-   | o o |      Sits in the middle of everything, as cats do.
-  __\_^_/__     Puts a system prompt on every request that
- (__/   \__)    passes, and keeps the mice out of your JSON.
-  _|  .  |_
- (__\___/__)
+  __________             ______________
+ |:""""""""|:           | ............ :
+ |:        |:           | :          | :
+ |: >webui |:           | :          | :
+ |:________|:           | :>openai   | :
+ |   .....  :---_____---| :__________| :
+ |  '-----" :           |..............:
+ | @        :"-__-_     |"""""""""""""":
+ |..........:    _-"    |..............:
+ /.::::::::.\   /\      /.::::::::.:::.\
+/____________\ (__)    /________________\
 ```
 
-<sub>The cat is a classic of the ASCII tradition, artist unknown. Found via [ASCII Art Archive](https://www.asciiart.eu), the home of classic text art.</sub>
+Open WebUI on the left, OpenAI on the right, and the middleware is the cable between them: every request picks up a system prompt on the way.
+
+<sub>Drawing from the ASCII tradition, artist unknown, screen text adapted. Found via [ASCII Art Archive](https://www.asciiart.eu), the home of classic text art.</sub>
 
 Open WebUI 0.6.5 backed by PostgreSQL, talking to OpenAI through a FastAPI middleware that injects a structured-extraction system prompt into every chat request and streams the response straight back.
 

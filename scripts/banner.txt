@@ -1,12 +1,19 @@
-
        _    _    _ _
  _ __ (_)__| |__| | |_____ __ ____ _ _ _ ___
 | '  \| / _` / _` | / -_) V  V / _` | '_/ -_)
 |_|_|_|_\__,_\__,_|_\___|\_/\_/\__,_|_| \___|
 
-   /\___/\
-   | o o |      Sits in the middle of everything, as cats do.
-  __\_^_/__     Puts a system prompt on every request that
- (__/   \__)    passes, and keeps the mice out of your JSON.
-  _|  .  |_
- (__\___/__)
+  __________             ______________
+ |:""""""""|:           | ............ :
+ |:        |:           | :          | :
+ |: >webui |:           | :          | :
+ |:________|:           | :>openai   | :
+ |   .....  :---_____---| :__________| :
+ |  '-----" :           |..............:
+ | @        :"-__-_     |"""""""""""""":
+ |..........:    _-"    |..............:
+ /.::::::::.\   /\      /.::::::::.:::.\
+/____________\ (__)    /________________\
+
+Open WebUI on the left, OpenAI on the right, and the middleware is
+the cable between them: every request picks up a system prompt on the way.
