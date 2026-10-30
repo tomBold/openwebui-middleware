@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 import pytest
 import respx
+import structlog
 from httpx import AsyncClient
 
 from tests.conftest import SYSTEM_PROMPT, sse_response
@@ -50,6 +51,20 @@ async def test_non_streaming_injects_prompt_and_returns_completion(
     assert forwarded["messages"] == [{"role": "system", "content": SYSTEM_PROMPT}, USER_MESSAGE]
     assert forwarded["temperature"] == 0.2
     assert "stream_options" not in forwarded
+
+
+async def test_request_log_records_the_injection(
+    client: AsyncClient, mock_upstream: respx.MockRouter
+) -> None:
+    mock_upstream.post(CHAT_URL).respond(json=COMPLETION)
+
+    with structlog.testing.capture_logs() as logs:
+        await client.post("/v1/chat/completions", json=chat_payload())
+
+    [entry] = [log for log in logs if log["event"] == "chat.request"]
+    assert entry["messages_in"] == 1
+    assert entry["messages_out"] == 2
+    assert entry["system_prompt_injected"] is True
 
 
 async def test_streaming_relays_upstream_events_verbatim(

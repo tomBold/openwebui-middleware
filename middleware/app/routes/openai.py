@@ -38,7 +38,14 @@ async def chat_completions(
 ) -> Response:
     payload = body.model_dump(exclude_unset=True)
     payload["messages"] = inject_system_prompt(body.messages, system_prompt)
-    log.info("chat.request", model=body.model, stream=body.stream, messages=len(body.messages))
+    log.info(
+        "chat.request",
+        model=body.model,
+        stream=body.stream,
+        messages_in=len(body.messages),
+        messages_out=len(payload["messages"]),
+        system_prompt_injected=True,
+    )
 
     if not body.stream:
         completion = await upstream.chat_completion(payload)

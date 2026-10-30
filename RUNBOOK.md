@@ -1,4 +1,4 @@
-# Runbook
+﻿# Runbook
 
 Every step is non-interactive and prints something you can check, so it works the same for a person pasting commands or an automation following them. Only Docker is needed. Commands are bash; PowerShell equivalents are noted where they differ.
 
@@ -60,7 +60,7 @@ docker compose logs middleware | grep chat.request | tail -n 2
 
 PowerShell: `docker compose logs middleware | Select-String chat.request | Select-Object -Last 2`
 
-Expect two lines, one per message, with `"messages": 1` and `"messages": 3`: Open WebUI sends only the conversation, and the browser's network tab shows the same payload with no `system` entry. The prompt is added by the middleware before the request reaches OpenAI.
+Expect two lines, one per message, with `"messages_in": 1, "messages_out": 2` and then `"messages_in": 3, "messages_out": 4`, each with `"system_prompt_injected": true`. Open WebUI sends only the conversation, and the browser's network tab shows the same payload with no `system` entry; the extra message on the way out is the prompt the middleware prepended.
 
 ## 5. Run the unit tests, linter and type checker
 
@@ -68,7 +68,7 @@ Expect two lines, one per message, with `"messages": 1` and `"messages": 3`: Ope
 make test-docker          # or: docker build --target test --progress=plain middleware
 ```
 
-No local Python is used. Expect `35 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
+No local Python is used. Expect `36 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
 
 ## 6. Stop
 
