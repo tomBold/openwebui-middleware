@@ -36,7 +36,7 @@ git clone https://github.com/tomBold/openwebui-middleware.git && cd openwebui-mi
 ./scripts/start.sh            # Windows: powershell -File scripts/start.ps1
 ```
 
-The script creates `.env` from `.env.example`, prompts for the API key (or takes it from `OPENAI_API_KEY` in the environment and asks nothing), builds and starts the three services, and waits until the middleware reports ready. Open <http://localhost:3000>. If something on your machine already uses port 3000 or 8000, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env`; the script prints the final URLs.
+The script creates `.env` from `.env.example`, prompts for the API key (or takes it from `OPENAI_API_KEY` in the environment and asks nothing), builds and starts the three services, waits until the middleware reports ready, and prints the two URLs to open: Open WebUI on <http://localhost:3000> and the middleware on <http://localhost:8000> by default. If something on your machine already uses one of those ports, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env` and rerun; the printed URLs follow.
 
 [RUNBOOK.md](RUNBOOK.md) is the same journey as a checklist: each step non-interactive, with the expected output and a troubleshooting table.
 
@@ -74,7 +74,7 @@ Everything else stays `None`. Set an expiry and rotate rather than leaving the k
 
 ## Verify it end to end
 
-Open <http://localhost:8000>. The middleware serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that sends a sample through the proxy with any of those models and streams the extraction back.
+Open the middleware URL the start script printed (<http://localhost:8000> by default). It serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that sends a sample through the proxy with any of those models and streams the extraction back.
 
 ![Middleware status page with a streamed sample extraction](docs/status.png)
 
@@ -96,7 +96,7 @@ curl -N localhost:8000/v1/chat/completions \
   -d '{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
 ```
 
-In the UI: open <http://localhost:3000>, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured JSON line per lifecycle event, all carrying the same `request_id`: request start, upstream first byte, stream completion with token usage, request completion with duration.
+In the UI: open the Open WebUI URL the start script printed, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured JSON line per lifecycle event, all carrying the same `request_id`: request start, upstream first byte, stream completion with token usage, request completion with duration.
 
 ![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
 
