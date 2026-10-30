@@ -1,0 +1,61 @@
+name: openwebui-middleware
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-openwebui}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openwebui}
+      POSTGRES_DB: ${POSTGRES_DB:-openwebui}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openwebui} -d ${POSTGRES_DB:-openwebui}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  middleware:
+    build:
+      context: ./middleware
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODELS: ${OPENAI_MODELS:-gpt-4o-mini,gpt-4o}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${MIDDLEWARE_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.6.5
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openwebui}:${POSTGRES_PASSWORD:-openwebui}@db:5432/${POSTGRES_DB:-openwebui}
+      ENABLE_PERSISTENT_CONFIG: "false"
+      ENABLE_OLLAMA_API: "false"
+      ENABLE_OPENAI_API: "true"
+      OPENAI_API_BASE_URL: http://middleware:8000/v1
+      OPENAI_API_KEY: unused-by-middleware
+      WEBUI_AUTH: ${WEBUI_AUTH:-false}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-local-dev-secret}
+      ENABLE_TITLE_GENERATION: "false"
+      ENABLE_TAGS_GENERATION: "false"
+      ENABLE_FOLLOW_UP_GENERATION: "false"
+      ENABLE_AUTOCOMPLETE_GENERATION: "false"
+      ENABLE_SEARCH_QUERY_GENERATION: "false"
+      ENABLE_RETRIEVAL_QUERY_GENERATION: "false"
+    ports:
+      - "${OPEN_WEBUI_PORT:-3000}:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+    depends_on:
+      db:
+        condition: service_healthy
+      middleware:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  open-webui-data:
