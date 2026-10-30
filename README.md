@@ -58,6 +58,12 @@ Everything else stays `None`. Set an expiry and rotate rather than leaving the k
 
 ## Verify it end to end
 
+Open <http://localhost:8000>. The middleware serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a button that sends a sample through the proxy and streams the extraction back.
+
+![Middleware status page with a streamed sample extraction](docs/status.png)
+
+From a terminal:
+
 ```bash
 ./scripts/smoke.sh            # health, readiness, models, a streaming completion
 ```
@@ -102,12 +108,13 @@ sequenceDiagram
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /` | Status page for operators. Static HTML, calls the endpoints below. |
 | `GET /health` | Liveness. Never touches OpenAI. |
 | `GET /ready` | Readiness. Calls OpenAI `/models`; 503 when unreachable or the key is rejected. |
 | `GET /v1/models` | Model discovery for Open WebUI, filtered by `OPENAI_MODELS`. |
 | `POST /v1/chat/completions` | Injects the prompt, forwards, streams back. |
 
-Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compatible backend, so those are the two endpoints that exist.
+Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compatible backend, so those are the two OpenAI endpoints that exist. The status page is deliberately not a chat client: Open WebUI is the UI, and the page only exercises the same endpoints a reviewer would otherwise curl.
 
 ## Design decisions
 

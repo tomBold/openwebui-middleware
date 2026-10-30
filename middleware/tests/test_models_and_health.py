@@ -101,6 +101,14 @@ async def test_ready_reports_unavailable_when_upstream_fails(
     assert response.json() == {"status": "upstream_unavailable"}
 
 
+async def test_status_page_is_served_at_root(client: AsyncClient) -> None:
+    response = await client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Middleware status" in response.text
+
+
 async def test_request_id_is_echoed_when_provided(client: AsyncClient) -> None:
     response = await client.get("/health", headers={"X-Request-ID": "abc123"})
 

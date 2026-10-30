@@ -31,7 +31,7 @@ foreach ($attempt in 1..60) {
         Invoke-RestMethod "http://localhost:$middlewarePort/ready" -TimeoutSec 5 | Out-Null
         Write-Host " ready"
         Write-Host "Open WebUI: http://localhost:$webuiPort"
-        Write-Host "Middleware docs: http://localhost:$middlewarePort/docs"
+        Write-Host "Middleware status: http://localhost:$middlewarePort"
         exit 0
     }
     catch {

@@ -9,7 +9,7 @@ from app.config import Settings, get_settings
 from app.logging_config import configure_logging, get_logger
 from app.middleware import RequestContextMiddleware
 from app.prompt import load_system_prompt
-from app.routes import health, openai
+from app.routes import health, openai, status
 from app.schemas import ErrorDetail, ErrorResponse
 from app.upstream import OpenAIUpstream, UpstreamError
 
@@ -53,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(UpstreamError, upstream_error_handler)
+    app.include_router(status.router)
     app.include_router(health.router)
     app.include_router(openai.router, prefix="/v1")
     return app

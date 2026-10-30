@@ -25,7 +25,7 @@ for _ in $(seq 1 60); do
   if curl -fsS "http://localhost:${middleware_port}/ready" >/dev/null 2>&1; then
     echo " ready"
     echo "Open WebUI: http://localhost:${webui_port}"
-    echo "Middleware docs: http://localhost:${middleware_port}/docs"
+    echo "Middleware status: http://localhost:${middleware_port}"
     exit 0
   fi
   printf '.'
