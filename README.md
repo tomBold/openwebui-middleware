@@ -78,15 +78,33 @@ Everything else stays `None`. Set an expiry and rotate rather than leaving the k
 
 ## Verify it end to end
 
-Open the middleware URL the start script printed (<http://localhost:8000> by default). It serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that sends a sample through the proxy with any of those models and streams the extraction back.
+### The real flow: Open WebUI
+
+This is the path the assignment describes, `User -> Open WebUI -> Middleware -> OpenAI`, and the only one a user ever sees. Open the Open WebUI URL the start script printed, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Open WebUI sends a plain user message; the middleware adds the system prompt before anything reaches OpenAI. The browser's network tab shows the `completions` request leaving with only `user` and `assistant` messages and no `system` entry, and the middleware log for the same request shows `"messages": 1` on the way in and about 1,500 prompt tokens on the way out.
+
+![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
+
+Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields.
+
+![A follow-up question answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
+
+`docker compose logs -f middleware` shows one structured JSON line per lifecycle event, all carrying the same `request_id`: request start, upstream first byte, stream completion with token usage, request completion with duration.
+
+### Verification tooling: the middleware address
+
+Everything below exists to check the middleware without going through Open WebUI. It is not part of the user flow and nothing in the chat depends on it.
+
+The middleware URL the start script printed (<http://localhost:8000> by default) serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that sends a sample through the same `POST /v1/chat/completions` Open WebUI uses and streams the extraction back.
 
 ![Middleware status page with a streamed sample extraction](docs/status.png)
 
 From a terminal:
 
 ```bash
-./scripts/smoke.sh            # health, readiness, models, a streaming completion
+./scripts/smoke.sh            # health, readiness, models, a streaming completion, then one chat through Open WebUI's API
 ```
+
+The last step sends a chat through Open WebUI's own API without any system prompt in the request and asserts the reply is still the extraction envelope, which only the middleware could have produced.
 
 Or by hand:
 
@@ -99,12 +117,6 @@ curl -N localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
 ```
-
-In the UI: open the Open WebUI URL the start script printed, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured JSON line per lifecycle event, all carrying the same `request_id`: request start, upstream first byte, stream completion with token usage, request completion with duration.
-
-![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
-
-![A follow-up question answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
 
 ## How it works
 

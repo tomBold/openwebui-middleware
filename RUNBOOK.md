@@ -40,7 +40,7 @@ If it ends with `failed`, see [Troubleshooting](#troubleshooting).
 
 PowerShell: `& "C:\Program Files\Git\bin\bash.exe" scripts/smoke.sh`, or run the four requests from the README by hand.
 
-Expect `{"status":"ok"}`, `{"status":"ready"}`, a model list, then a stream of `data:` lines containing the extraction JSON and ending with `data: [DONE]`.
+Expect `{"status":"ok"}`, `{"status":"ready"}`, a model list, a stream of `data:` lines containing the extraction JSON and ending with `data: [DONE]`, and finally `Open WebUI -> middleware -> OpenAI: ok`. That last step sends a chat through Open WebUI's own API with no system prompt in the request and checks that the reply is still the extraction envelope, which only the middleware could have caused.
 
 Open <http://localhost:8000>: all three cards show a green dot and Send returns formatted JSON.
 
@@ -55,12 +55,12 @@ Fwd: payment - Hi, attached the receipt from Cafe Luna, 14/03 2024, 2x espresso 
 Expect a JSON reply with `document_type: "receipt"` and a confidence per field. Then ask `what was the total?` and expect one sentence of prose citing the extracted amount. Confirm the request went through the middleware:
 
 ```bash
-docker compose logs middleware | grep -c upstream.stream_completed
+docker compose logs middleware | grep chat.request | tail -n 2
 ```
 
-PowerShell: `(docker compose logs middleware | Select-String upstream.stream_completed).Count`
+PowerShell: `docker compose logs middleware | Select-String chat.request | Select-Object -Last 2`
 
-Expect a number of at least 2.
+Expect two lines, one per message, with `"messages": 1` and `"messages": 3`: Open WebUI sends only the conversation, and the browser's network tab shows the same payload with no `system` entry. The prompt is added by the middleware before the request reaches OpenAI.
 
 ## 5. Run the unit tests, linter and type checker
 
