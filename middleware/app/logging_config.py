@@ -1,9 +1,18 @@
 import logging
 import sys
-from typing import cast
+from typing import Any, cast
 
 import structlog
-from structlog.typing import FilteringBoundLogger, Processor
+from structlog.typing import EventDict, FilteringBoundLogger, Processor, WrappedLogger
+
+LEADING_KEYS = ("timestamp", "level", "event")
+
+
+def order_keys(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
+    leading: dict[str, Any] = {
+        key: event_dict.pop(key) for key in LEADING_KEYS if key in event_dict
+    }
+    return {**leading, **event_dict}
 
 
 def configure_logging(level: str, *, json: bool) -> None:
@@ -16,6 +25,7 @@ def configure_logging(level: str, *, json: bool) -> None:
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.format_exc_info,
+            order_keys,
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(level.upper())),
