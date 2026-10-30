@@ -19,15 +19,18 @@ OPENAI_API_KEY=sk-... ./scripts/start.sh
 
 PowerShell: `$env:OPENAI_API_KEY = "sk-..."; powershell -File scripts/start.ps1`
 
-With the key in the environment the script never prompts. Expect, after the build, the lines:
+With the key in the environment the script never prompts. It waits until both services answer, then prints their addresses, taken from the ports in `.env`:
 
 ```text
-Waiting for middleware readiness ready
-Open WebUI: http://localhost:3000
-Middleware status: http://localhost:8000
+Waiting for middleware.... up
+Waiting for Open WebUI........ up
+
+Middleware is up at http://localhost:8000
+Open WebUI is up at http://localhost:3000
+Stop with: docker compose down
 ```
 
-If it ends with `failed`, see [Troubleshooting](#troubleshooting). The script waits for the middleware only; Open WebUI needs up to a minute more before it serves its first page.
+If it ends with `failed`, see [Troubleshooting](#troubleshooting).
 
 ## 3. Check the middleware
 

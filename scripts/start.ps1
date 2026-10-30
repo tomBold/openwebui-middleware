@@ -26,24 +26,31 @@ function Get-EnvValue($name, $fallback) {
     if ($line) { $line.Matches[0].Groups[1].Value } else { $fallback }
 }
 
-$middlewarePort = Get-EnvValue "MIDDLEWARE_PORT" "8000"
-$webuiPort = Get-EnvValue "OPEN_WEBUI_PORT" "3000"
+$middlewareUrl = "http://localhost:$(Get-EnvValue 'MIDDLEWARE_PORT' '8000')"
+$webuiUrl = "http://localhost:$(Get-EnvValue 'OPEN_WEBUI_PORT' '3000')"
 
-Write-Host "Waiting for middleware readiness" -NoNewline
-foreach ($attempt in 1..60) {
-    try {
-        Invoke-RestMethod "http://localhost:$middlewarePort/ready" -TimeoutSec 5 | Out-Null
-        Write-Host " ready"
-        Write-Host "Open WebUI: http://localhost:$webuiPort"
-        Write-Host "Middleware status: http://localhost:$middlewarePort"
-        exit 0
+function Wait-ForService($name, $url, $service) {
+    Write-Host "Waiting for $name" -NoNewline
+    foreach ($attempt in 1..90) {
+        try {
+            Invoke-RestMethod $url -TimeoutSec 5 | Out-Null
+            Write-Host " up"
+            return
+        }
+        catch {
+            Write-Host "." -NoNewline
+            Start-Sleep -Seconds 2
+        }
     }
-    catch {
-        Write-Host "." -NoNewline
-        Start-Sleep -Seconds 2
-    }
+    Write-Host " failed"
+    Write-Host "$name did not come up. Check: docker compose logs $service"
+    exit 1
 }
 
-Write-Host " failed"
-Write-Host "Middleware did not become ready. Check: docker compose logs middleware"
-exit 1
+Wait-ForService "middleware" "$middlewareUrl/ready" "middleware"
+Wait-ForService "Open WebUI" "$webuiUrl/health" "open-webui"
+
+Write-Host ""
+Write-Host "Middleware is up at $middlewareUrl"
+Write-Host "Open WebUI is up at $webuiUrl"
+Write-Host "Stop with: docker compose down"
