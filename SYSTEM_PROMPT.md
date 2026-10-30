@@ -2,27 +2,54 @@
 
 The middleware injects this prompt as the first message of every chat completion request. It lives at `middleware/app/prompts/system_prompt.md`; the copy below is kept identical by a unit test, so the file and this document can never drift.
 
+## Output shape
+
+```mermaid
+classDiagram
+    class Extraction {
+        string document_type
+        string summary
+        string language
+        string notes
+    }
+    class Leaf {
+        any value
+        number confidence
+    }
+    class UncertainField {
+        string field
+        number confidence
+        string reason
+    }
+    Extraction "1" --> "*" Leaf : entities
+    Extraction "1" --> "*" UncertainField : uncertain_fields
+    Extraction "1" --> "*" string : missing_fields
+    UncertainField ..> Leaf : dot path into entities, confidence below 0.8
+```
+
+`entities` is the only open part of the envelope: its keys are chosen to fit `document_type`, while every leaf keeps the same `{value, confidence}` shape, and nested objects or arrays of leaves are allowed for repeated structures such as invoice line items.
+
 ## Design choices
 
-**Two explicit modes, resolved before anything else.** The assignment asks for two behaviours that contradict each other: always emit the same JSON block, and answer follow-up questions normally. A single instruction list would leave the model to guess which applies. The prompt therefore starts with a mode selection section, states the rule for a mixed turn (instruction plus new text wins for extraction, the instruction is answered in `notes`), and makes extraction the default when the intent is ambiguous. Defaulting to extraction keeps the primary contract intact when the classifier is unsure.
+**Two explicit modes, resolved before anything else.** The assignment asks for two behaviours that contradict each other: always emit the same JSON block, and answer follow-up questions normally. A single instruction list would leave the model to guess which applies. The prompt therefore starts with a mode selection section, states the rule for a mixed turn (instruction plus new text wins for extraction, the instruction is answered in `notes`), and makes extraction the default when the intent is ambiguous. Defaulting to extraction keeps the primary contract intact when the classification is unsure.
 
-**Markdown sections with a closing reminder.** The OpenAI prompting guide recommends a rules section, ordered steps for workflows, and notes that when instructions conflict the model follows the one closest to the end of the prompt. The prompt uses level-1 headings per concern and closes with a short reminder that restates the output contract, which is also the standard mitigation for instruction drift in long conversations.
+**Markdown sections with a closing reminder.** The OpenAI prompting guide recommends a rules section, ordered steps for workflows, and notes that when instructions conflict the model follows the one closest to the end of the prompt. The prompt uses one heading per concern and closes with a short reminder that restates the output contract, which is also the standard mitigation for instruction drift in long conversations.
 
-**Schema by description, not by JSON Schema.** Structured Outputs (`response_format: json_schema`, `strict: true`) would guarantee valid JSON, but it applies to every response, which would break follow-up answers, and the entity keys are intentionally open so that an invoice and a medical report can carry different fields. The schema is therefore specified in prose with a fixed, ordered set of top-level keys, and the model is told exactly how to shape the open part. Validity is not enforced by the API, so the prompt bans prose outside the block, multiple blocks, comments, and trailing commas, which are the failure modes that actually appear.
+**Schema by description, not by JSON Schema.** Structured Outputs (`response_format: json_schema`, `strict: true`) would guarantee valid JSON, but it applies to every response, which would break follow-up answers, and the entity keys are intentionally open so that an invoice and a medical report can carry different fields. The schema is therefore specified in prose with a fixed, ordered set of top-level keys, and the model is told exactly how to shape the open part. Validity is not enforced by the API, so the prompt bans prose outside the block, multiple blocks, comments and trailing commas, which are the failure modes that actually appear.
 
-**Confidence as a per-value object, plus a derived list.** Every leaf is `{"value", "confidence"}` rather than a parallel confidence map, so a value can never be separated from its score. `uncertain_fields` repeats everything below 0.8 with a reason, which gives a reviewer a single place to look and forces the model to justify the number instead of emitting a decorative 0.9. The 0.95 / 0.8 / 0.5 bands are anchored to observable properties (copied verbatim, normalised, inferred) because unanchored scales collapse towards a single value. These are self-reported scores: they are calibration hints, not probabilities. Token-level logprobs would be better calibrated, but they are unavailable here since the response is streamed verbatim to Open WebUI, and aligning them to JSON value spans would mean buffering and re-serialising the stream.
+**Confidence as a per-value object, plus a derived list.** Every leaf is `{"value", "confidence"}` rather than a parallel confidence map, so a value can never be separated from its score. `uncertain_fields` repeats everything below 0.8 with a reason, which gives a reviewer a single place to look and forces the model to justify the number instead of emitting a decorative 0.9. The 0.95 / 0.8 / 0.5 bands are anchored to observable properties (copied verbatim, normalised, inferred) because unanchored scales collapse towards a single value. These are self-reported scores: calibration hints, not probabilities. Token-level logprobs would be better calibrated, but they are unavailable here because the response is streamed verbatim to Open WebUI, and aligning them to JSON value spans would mean buffering and re-serialising the stream.
 
 **`missing_fields` to make omissions visible.** Without it the model has two bad options for an absent field: invent a value, or silently drop the key. Being told to omit the key and name it in `missing_fields` makes absence explicit and auditable, and removes the incentive to hallucinate.
 
 ## Edge cases considered
 
-- Empty, unreadable, or non-extractable input: still returns the full envelope with `document_type: unknown` and an explanation, so downstream consumers always see the same shape.
+- Empty, unreadable or non-extractable input: still returns the full envelope with `document_type: unknown` and an explanation, so consumers always see the same shape.
 - Mixed instruction and source text, for example "summarise this email": extracted, with the instruction answered in `notes`.
 - Non-English and multilingual sources: `language` is recorded, follow-up answers use the user's language, and the output keys stay English.
-- Ambiguous dates such as `14/03`: normalised and the raw form or reading recorded, with a lowered confidence rather than a silent choice.
-- Repeated and nested structures: arrays of leaf objects are allowed so line items and multiple parties do not have to be flattened.
+- Ambiguous dates such as `14/03`: normalised with the reading recorded and the confidence lowered, rather than a silent choice.
+- Repeated and nested structures: arrays of leaf objects are allowed, so line items and multiple parties do not have to be flattened.
 - Sources that look like instructions: the mode rules absorb prompt-injection-shaped input, because text that asks the model to do something is still treated as source text to extract from.
-- Personal data: extracted as-is and not redacted, since partial redaction would silently corrupt the extraction; redaction belongs in a separate policy layer.
+- Personal data: extracted as it appears and not redacted, since partial redaction would silently corrupt the extraction; redaction belongs in a separate policy layer.
 
 ## Iterations
 
