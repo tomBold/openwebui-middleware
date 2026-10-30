@@ -48,6 +48,9 @@ jobs:
         run: "! grep -rlU $'\\r' scripts/*.sh"
       - name: Check shell syntax
         run: bash -n scripts/start.sh && bash -n scripts/smoke.sh
+      - name: Install shellcheck on macOS
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
       - name: Lint shell scripts
         run: shellcheck scripts/*.sh
       - name: Verify every tracked file is valid UTF-8
