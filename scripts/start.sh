@@ -2,6 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+cat scripts/banner.txt
 
 if [ ! -f .env ]; then
   cp .env.example .env

@@ -1,6 +1,7 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
+Get-Content scripts/banner.txt
 
 if (-not (Test-Path .env)) {
     Copy-Item .env.example .env
