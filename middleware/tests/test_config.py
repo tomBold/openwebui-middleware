@@ -5,9 +5,9 @@ from app.config import Settings
 
 
 def test_models_accept_comma_separated_string() -> None:
-    settings = Settings(openai_api_key="key", openai_models="gpt-4o-mini, gpt-4o")
+    settings = Settings(openai_api_key="key", openai_models="gpt-5.4-mini, gpt-6-luna")
 
-    assert settings.openai_models == ["gpt-4o-mini", "gpt-4o"]
+    assert settings.openai_models == ["gpt-5.4-mini", "gpt-6-luna"]
 
 
 def test_api_key_is_not_exposed_in_repr() -> None:

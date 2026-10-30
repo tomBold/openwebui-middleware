@@ -41,7 +41,7 @@ def settings(tmp_path: Path) -> Settings:
     return Settings(
         openai_api_key="test-key",
         openai_base_url="https://upstream.test/v1",
-        openai_models=["gpt-4o-mini"],
+        openai_models=["gpt-5.4-mini"],
         system_prompt_path=prompt_path,
         readiness_timeout=1.0,
     )

@@ -9,7 +9,7 @@ MODELS_URL = "/models"
 UPSTREAM_MODELS = {
     "object": "list",
     "data": [
-        {"id": "gpt-4o-mini", "object": "model"},
+        {"id": "gpt-5.4-mini", "object": "model"},
         {"id": "text-embedding-3-small", "object": "model"},
     ],
 }
@@ -35,7 +35,10 @@ async def test_models_are_filtered_by_allowlist(
     response = await client.get("/v1/models")
 
     assert response.status_code == 200
-    assert response.json() == {"object": "list", "data": [{"id": "gpt-4o-mini", "object": "model"}]}
+    assert response.json() == {
+        "object": "list",
+        "data": [{"id": "gpt-5.4-mini", "object": "model"}],
+    }
 
 
 async def test_empty_allowlist_passes_every_upstream_model_through(

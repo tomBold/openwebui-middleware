@@ -29,7 +29,7 @@ STREAM_CHUNKS = [
 
 
 def chat_payload(**overrides: Any) -> dict[str, Any]:  # noqa: ANN401
-    return {"model": "gpt-4o-mini", "messages": [USER_MESSAGE], **overrides}
+    return {"model": "gpt-5.4-mini", "messages": [USER_MESSAGE], **overrides}
 
 
 def forwarded_body(route: respx.Route) -> dict[str, Any]:
@@ -171,6 +171,6 @@ async def test_streaming_upstream_error_is_relayed_before_streaming(
 
 
 async def test_invalid_request_body_is_rejected(client: AsyncClient) -> None:
-    response = await client.post("/v1/chat/completions", json={"model": "gpt-4o-mini"})
+    response = await client.post("/v1/chat/completions", json={"model": "gpt-5.4-mini"})
 
     assert response.status_code == 422
