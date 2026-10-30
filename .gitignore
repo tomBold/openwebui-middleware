@@ -15,6 +15,7 @@ dist/
 .ruff_cache/
 .coverage
 coverage.xml
+test-results.xml
 htmlcov/
 
 # Editors and OS

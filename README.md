@@ -14,7 +14,7 @@
       ^^    ^^
 ```
 
-<sub>The cow is the 1991 classic from the [Complete Guide to Cows](https://www.asciiart.eu/collections/summer-1991-part-1-the-classic-cows), edited by David A. Bader, artist unknown, grandparent of every `cowsay`. Found via [ASCII Art Archive](https://www.asciiart.eu), the home of classic text art.</sub>
+*The cow is the 1991 classic from the [Complete Guide to Cows](https://www.asciiart.eu/collections/summer-1991-part-1-the-classic-cows), edited by David A. Bader, artist unknown, grandparent of every `cowsay`. Found via [ASCII Art Archive](https://www.asciiart.eu), the home of classic text art.*
 
 Open WebUI 0.6.5 backed by PostgreSQL, talking to OpenAI through a FastAPI middleware that injects a structured-extraction system prompt into every chat request and streams the response straight back.
 
@@ -192,7 +192,7 @@ make typecheck     # mypy --strict
 make check         # all three, what CI runs
 ```
 
-CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu and 3.12 on macOS, lints the shell scripts, runs the Docker `test` stage, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
+CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu and 3.12 on macOS, and writes a test and coverage report into each run's summary with the JUnit and coverage XML attached as artifacts. It also lints the shell scripts and the Markdown, runs the Docker `test` stage, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
 
 ### Running the middleware without Docker
 

@@ -34,7 +34,30 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy .
-      - run: uv run pytest
+      - run: uv run pytest --junitxml=test-results.xml --cov-report=xml --cov-report=term-missing
+      - name: Write the test report to the job summary
+        if: always()
+        run: |
+          {
+            echo "### Tests on ${{ matrix.os }}, Python ${{ matrix.python-version }}"
+            uv run python -c "import xml.etree.ElementTree as ET; s = ET.parse('test-results.xml').getroot()[0].attrib; print(f\"{int(s['tests']) - int(s['failures']) - int(s['errors']) - int(s['skipped'])} passed, {s['failures']} failed, {s['skipped']} skipped in {float(s['time']):.2f}s\n\")"
+            uv run coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            middleware/test-results.xml
+            middleware/coverage.xml
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DavidAnson/markdownlint-cli2-action@v20
+        with:
+          globs: "**/*.md"
 
   scripts:
     runs-on: ${{ matrix.os }}
