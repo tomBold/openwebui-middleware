@@ -20,12 +20,14 @@ Open WebUI 0.6.5 backed by PostgreSQL, talking to OpenAI through a FastAPI middl
 
 ```mermaid
 flowchart LR
-    User --> WebUI["Open WebUI v0.6.5<br/>:3000"]
-    WebUI --> DB[("PostgreSQL 16<br/>chats, users, settings")]
-    WebUI -->|OPENAI_API_BASE_URL| MW["Middleware<br/>FastAPI :8000"]
-    MW -->|"system prompt + messages"| OpenAI["OpenAI<br/>/v1/chat/completions"]
+    User[Browser] -->|chat UI| WebUI["Open WebUI v0.6.5<br/>:3000"]
+    WebUI -->|"stores chats, users, settings"| DB[("PostgreSQL 16")]
+    WebUI -->|"/v1/models, /v1/chat/completions<br/>(OPENAI_API_BASE_URL)"| MW["Middleware<br/>FastAPI :8000"]
+    MW -->|"same request + system prompt"| OpenAI["OpenAI<br/>/v1/chat/completions"]
     OpenAI -->|SSE| MW -->|SSE| WebUI
 ```
+
+Open WebUI is the chat application and owns the state; it keeps chats, users and settings in PostgreSQL. The middleware is stateless: it never touches the database, it only sits on the path to OpenAI.
 
 ## Run it locally
 
