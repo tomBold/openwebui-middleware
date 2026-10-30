@@ -1,6 +1,6 @@
 # Open WebUI + Middleware Stack
 
-[![CI](https://github.com/OWNER/openwebui-middleware/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/openwebui-middleware/actions/workflows/ci.yml)
+[![CI](https://github.com/tomBold/openwebui-middleware/actions/workflows/ci.yml/badge.svg)](https://github.com/tomBold/openwebui-middleware/actions/workflows/ci.yml)
 
 Open WebUI 0.6.5 backed by PostgreSQL, talking to OpenAI through a FastAPI middleware that injects a structured-extraction system prompt into every chat request and streams the response straight back.
 
