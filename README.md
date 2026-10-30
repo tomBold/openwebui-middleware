@@ -69,7 +69,7 @@ Everything else stays `None`. Set an expiry and rotate rather than leaving the k
 
 ## Verify it end to end
 
-Open <http://localhost:8000>. The middleware serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a button that sends a sample through the proxy and streams the extraction back.
+Open <http://localhost:8000>. The middleware serves a one-page status view: liveness, readiness against OpenAI, the models Open WebUI will see, and a form that sends a sample through the proxy with any of those models and streams the extraction back.
 
 ![Middleware status page with a streamed sample extraction](docs/status.png)
 
