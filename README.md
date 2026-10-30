@@ -37,10 +37,22 @@ The stack needs your own key; none is bundled. At <https://platform.openai.com>:
 
 1. **Billing** then add credit. The minimum is $5 and covers this comfortably: a typical extraction costs roughly $0.001 to $0.002. Leave auto-reload off.
 2. **API keys** then **Create new secret key**, owned by **You**. The default **All** permissions works; copy the key immediately, it is shown once.
-3. Optional least privilege: choose **Restricted** and grant only `List models: Read` and `Model capabilities > Chat completions: Request`. Those are the only two endpoints this middleware calls. If the key then returns `401 Missing scopes: model.request`, that is a known quirk of the restricted-key UI; switch the key to **All** permissions.
-4. Paste it into `OPENAI_API_KEY` in `.env`.
+3. Paste it into `OPENAI_API_KEY` in `.env`.
 
 `GET /ready` tells you whether the key works: `{"status":"ready"}` means OpenAI accepted it, `{"status":"upstream_unavailable"}` means it was rejected, expired, or unreachable.
+
+#### Least-privilege keys
+
+Following OpenAI's [API key safety guidance](https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety) and [production best practices](https://developers.openai.com/api/docs/guides/production-best-practices), the key can be narrowed to exactly what this service calls. Choose **Restricted** and grant only:
+
+| Scope | Level | Used by |
+| --- | --- | --- |
+| List models | Read | `GET /ready`, `GET /v1/models` |
+| Model capabilities > Chat completions | Request | `POST /v1/chat/completions` |
+
+Everything else stays `None`. Set an expiry and rotate rather than leaving the key open-ended.
+
+> **Caveat worth knowing.** Restricted keys have a [documented failure mode](https://community.openai.com/t/missing-scopes-model-request-on-restricted-api-key/1371602) where selecting a single child scope sets `api.model.chat_completions.request` without the parent `model.request`, and every call returns `401 Missing scopes: model.request`. OpenAI shipped a fix in May 2026, but reports of regressions continue. The scopes above were verified against the live API for this project. If you hit that error, switch the key to **All** permissions.
 
 `.env` is the only place a secret lives, it is gitignored, and Open WebUI never receives the real key: it is given a dummy one and only reaches OpenAI through the middleware.
 
