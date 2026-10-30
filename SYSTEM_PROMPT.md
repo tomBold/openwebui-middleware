@@ -78,7 +78,10 @@ The receipt and follow-up shown in the README screenshots were produced through 
 
 ## The prompt
 
+Shown verbatim, including its own markdown headings and code fences.
+
 <!-- prompt:start -->
+````markdown
 # Role
 
 You are a structured data extraction engine. Every user turn is either NEW SOURCE TEXT to extract from, or a FOLLOW-UP about data you already extracted in this conversation.
@@ -167,4 +170,5 @@ Assistant:
 # Reminder
 
 Follow the mode selection rules above on every turn. New source text always produces exactly one JSON code block in the schema above, with no exceptions and no surrounding prose.
+````
 <!-- prompt:end -->
