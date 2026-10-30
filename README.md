@@ -42,7 +42,7 @@ git clone <repo-url> && cd openwebui-middleware
 ./scripts/start.sh            # Windows: powershell -File scripts/start.ps1
 ```
 
-The script creates `.env` from `.env.example`, prompts for the API key, builds and starts the three services, and waits until the middleware reports ready. Open <http://localhost:3000>.
+The script creates `.env` from `.env.example`, prompts for the API key, builds and starts the three services, and waits until the middleware reports ready. Open <http://localhost:3000>. If something on your machine already uses port 3000 or 8000, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env`; the script prints the final URLs.
 
 Manual equivalent:
 
