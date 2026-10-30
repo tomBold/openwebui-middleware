@@ -1,6 +1,9 @@
 import httpx
 import respx
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
+
+from app.config import Settings
+from app.main import create_app
 
 MODELS_URL = "/models"
 UPSTREAM_MODELS = {
@@ -12,6 +15,18 @@ UPSTREAM_MODELS = {
 }
 
 
+async def models_with_allowlist(settings: Settings, allowlist: list[str]) -> list[dict[str, str]]:
+    app = create_app(settings.model_copy(update={"openai_models": allowlist}))
+    transport = ASGITransport(app=app)
+    async with (
+        AsyncClient(transport=transport, base_url="http://middleware.test") as client,
+        app.router.lifespan_context(app),
+    ):
+        response = await client.get("/v1/models")
+    data: list[dict[str, str]] = response.json()["data"]
+    return data
+
+
 async def test_models_are_filtered_by_allowlist(
     client: AsyncClient, mock_upstream: respx.MockRouter
 ) -> None:
@@ -21,6 +36,22 @@ async def test_models_are_filtered_by_allowlist(
 
     assert response.status_code == 200
     assert response.json() == {"object": "list", "data": [{"id": "gpt-4o-mini", "object": "model"}]}
+
+
+async def test_empty_allowlist_passes_every_upstream_model_through(
+    settings: Settings, mock_upstream: respx.MockRouter
+) -> None:
+    mock_upstream.get(MODELS_URL).respond(json=UPSTREAM_MODELS)
+
+    assert await models_with_allowlist(settings, []) == UPSTREAM_MODELS["data"]
+
+
+async def test_allowlist_matching_nothing_returns_empty_list(
+    settings: Settings, mock_upstream: respx.MockRouter
+) -> None:
+    mock_upstream.get(MODELS_URL).respond(json=UPSTREAM_MODELS)
+
+    assert await models_with_allowlist(settings, ["model-the-account-cannot-see"]) == []
 
 
 async def test_models_upstream_failure_is_relayed(

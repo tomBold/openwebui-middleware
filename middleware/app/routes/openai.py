@@ -20,6 +20,12 @@ async def list_models(upstream: UpstreamDep, settings: SettingsDep) -> dict[str,
     models = await upstream.list_models()
     allowed = set(settings.openai_models)
     data = [model for model in models if not allowed or model["id"] in allowed]
+    if allowed and not data:
+        log.warning(
+            "models.allowlist_matched_nothing",
+            allowed=sorted(allowed),
+            upstream_count=len(models),
+        )
     return {"object": "list", "data": data}
 
 
