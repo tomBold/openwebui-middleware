@@ -32,7 +32,7 @@ flowchart LR
 Requirements: Docker Desktop and an OpenAI API key. Nothing else; Python is only needed to run the tests, see [Development](#development).
 
 ```bash
-git clone <repo-url> && cd openwebui-middleware
+git clone https://github.com/tomBold/openwebui-middleware.git && cd openwebui-middleware
 ./scripts/start.sh            # Windows: powershell -File scripts/start.ps1
 ```
 
@@ -96,7 +96,7 @@ curl -N localhost:8000/v1/chat/completions \
   -d '{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
 ```
 
-In the UI: open <http://localhost:3000>, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured log line per lifecycle event, including the injected prompt, time to first token, and token usage.
+In the UI: open <http://localhost:3000>, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured JSON line per lifecycle event, all carrying the same `request_id`: request start, upstream first byte, stream completion with token usage, request completion with duration.
 
 ![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
 
@@ -132,6 +132,10 @@ sequenceDiagram
 
 Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compatible backend, so those are the two OpenAI endpoints that exist. The status page is deliberately not a chat client: Open WebUI is the UI, and the page only exercises the same endpoints a reviewer would otherwise curl.
 
+## The system prompt
+
+The prompt and the reasoning behind it, with the edge cases it was tested against, are in [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md). The middleware loads it from `middleware/app/prompts/system_prompt.md` at startup, and a unit test asserts the document and the shipped file never drift.
+
 ## Design decisions
 
 - **Prompt injected server-side, not in Open WebUI.** The contract holds for every client of the middleware, and it cannot be edited away in the UI. It is prepended as the first message, so a per-model system prompt configured in Open WebUI still arrives and is simply subordinate.
@@ -139,7 +143,7 @@ Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compa
 - **Failures stay in the OpenAI error shape.** Upstream 4xx and 5xx keep their status and body; connect errors become 502 and timeouts 504. A failure that happens mid-stream cannot change the status code, so it is emitted as an SSE error event followed by `[DONE]`, which Open WebUI renders instead of hanging.
 - **Two kinds of health.** `/health` answers whether the process is alive, `/ready` whether it can actually serve traffic. Compose gates Open WebUI on the container healthcheck so the model list is never fetched from a dead middleware.
 - **Background generation disabled.** Open WebUI 0.6.5 generates chat titles, tags and follow-ups through the same chat endpoint, which the extractor prompt would answer with JSON. Those features are turned off in compose so the behaviour is predictable; the trade-off is noted rather than hidden.
-- **Config is environment-only and persistent config is off.** `OPENAI_API_BASE_URL` is a Open WebUI `ConfigVar` that would otherwise be frozen at first boot, which makes a container rebuild silently ignore `.env`.
+- **Config is environment-only and persistent config is off.** `OPENAI_API_BASE_URL` is an Open WebUI `ConfigVar` that would otherwise be frozen at first boot, which makes a container rebuild silently ignore `.env`.
 - **PostgreSQL over SQLite.** The assignment asks for a database service, and it also matches how Open WebUI is meant to run outside single-user setups.
 
 ## Development
@@ -159,10 +163,8 @@ Running them directly needs [uv](https://docs.astral.sh/uv/), which creates the 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh                                     # macOS, Linux
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
-```
 
-```bash
-make test                  # from the repo root
+make test                         # from the repo root
 cd middleware && uv run pytest    # the same, without make
 ```
 
@@ -200,5 +202,3 @@ OPENAI_API_KEY=sk-... uv run uvicorn app.main:create_app --factory --reload
 ```
 
 It listens on <http://localhost:8000> with the status page at `/` and the OpenAPI docs at `/docs`. The other settings in `.env.example` can be passed the same way.
-
-The system prompt and the reasoning behind it are in [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md). It is loaded from `middleware/app/prompts/system_prompt.md` at startup, and a unit test asserts the document and the shipped file never drift.

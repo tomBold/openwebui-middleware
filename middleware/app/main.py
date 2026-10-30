@@ -42,7 +42,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.settings = settings
             app.state.upstream = OpenAIUpstream(client)
             app.state.system_prompt = load_system_prompt(settings.system_prompt_path)
-            log.info("app.started", upstream=str(settings.openai_base_url))
+            log.info(
+                "app.started",
+                upstream=str(settings.openai_base_url),
+                models=settings.openai_models,
+                system_prompt_chars=len(app.state.system_prompt),
+            )
             yield
 
     app = FastAPI(

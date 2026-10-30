@@ -55,6 +55,8 @@ Expect a JSON reply with `document_type: "receipt"` and a confidence per field. 
 docker compose logs middleware | grep -c upstream.stream_completed
 ```
 
+PowerShell: `(docker compose logs middleware | Select-String upstream.stream_completed).Count`
+
 Expect a number of at least 2.
 
 ## 5. Run the unit tests, linter and type checker
