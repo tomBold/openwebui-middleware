@@ -31,6 +31,17 @@ cp .env.example .env          # then edit OPENAI_API_KEY
 docker compose up -d --build
 ```
 
+### Getting an OpenAI API key
+
+The stack needs your own key; none is bundled. At <https://platform.openai.com>:
+
+1. **Billing** then add credit. The minimum is $5 and covers this comfortably: a typical extraction costs roughly $0.001 to $0.002. Leave auto-reload off.
+2. **API keys** then **Create new secret key**, owned by **You**. Copy it immediately, it is shown once.
+3. Optional least privilege: choose **Restricted** and grant only `List models: Read` and `Model capabilities > Chat completions: Request`. Those are the only two endpoints this middleware calls. If the key then returns `401 Missing scopes: model.request`, that is a known quirk of the restricted-key UI; switch the key to **All** permissions.
+4. Paste it into `OPENAI_API_KEY` in `.env`.
+
+`GET /ready` tells you whether the key works: `{"status":"ready"}` means OpenAI accepted it, `{"status":"upstream_unavailable"}` means it was rejected, expired, or unreachable.
+
 `.env` is the only place a secret lives, it is gitignored, and Open WebUI never receives the real key: it is given a dummy one and only reaches OpenAI through the middleware.
 
 ## Verify it end to end
