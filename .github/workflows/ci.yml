@@ -12,11 +12,15 @@ concurrency:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.11", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
     defaults:
       run:
         working-directory: middleware
@@ -31,6 +35,26 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy .
       - run: uv run pytest
+
+  scripts:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reject CRLF line endings in shell scripts
+        run: "! grep -rlU $'\\r' scripts/*.sh"
+      - name: Check shell syntax
+        run: bash -n scripts/start.sh && bash -n scripts/smoke.sh
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh
+      - name: Verify every tracked file is valid UTF-8
+        run: |
+          git ls-files -z | while IFS= read -r -d '' file; do
+            iconv -f UTF-8 -t UTF-8 "$file" >/dev/null || { echo "not UTF-8: $file"; exit 1; }
+          done
 
   docker:
     runs-on: ubuntu-latest
