@@ -2,6 +2,8 @@ from typing import Any
 
 import httpx
 
+MAX_ERROR_TEXT = 500
+
 
 class UpstreamError(Exception):
     def __init__(self, status_code: int, message: str, error_type: str) -> None:
@@ -22,8 +24,16 @@ class UpstreamError(Exception):
             detail = response.json()["error"]
             message, error_type = detail["message"], detail.get("type", "upstream_error")
         except (ValueError, KeyError, TypeError):
-            message, error_type = response.text, "upstream_error"
+            message, error_type = response.text[:MAX_ERROR_TEXT], "upstream_error"
         return cls(response.status_code, message, error_type)
+
+    @classmethod
+    def from_invalid_body(cls, response: httpx.Response) -> "UpstreamError":
+        return cls(
+            502,
+            f"Upstream returned a non-JSON body: {response.text[:MAX_ERROR_TEXT]}",
+            "upstream_unavailable",
+        )
 
 
 class OpenAIUpstream:
@@ -33,13 +43,12 @@ class OpenAIUpstream:
     async def list_models(self, timeout_s: float | None = None) -> list[dict[str, Any]]:
         options: dict[str, Any] = {"timeout": timeout_s} if timeout_s else {}
         response = await self._request("GET", "/models", **options)
-        data: list[dict[str, Any]] = response.json()["data"]
+        data: list[dict[str, Any]] = self._json(response)["data"]
         return data
 
     async def chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
         response = await self._request("POST", "/chat/completions", json=payload)
-        completion: dict[str, Any] = response.json()
-        return completion
+        return self._json(response)
 
     async def open_chat_stream(self, payload: dict[str, Any]) -> httpx.Response:
         request = self._client.build_request("POST", "/chat/completions", json=payload)
@@ -52,6 +61,16 @@ class OpenAIUpstream:
             await response.aclose()
             raise UpstreamError.from_response(response)
         return response
+
+    @staticmethod
+    def _json(response: httpx.Response) -> dict[str, Any]:
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise UpstreamError.from_invalid_body(response) from exc
+        if not isinstance(body, dict):
+            raise UpstreamError.from_invalid_body(response)
+        return body
 
     async def _request(self, method: str, path: str, **options: Any) -> httpx.Response:  # noqa: ANN401
         try:

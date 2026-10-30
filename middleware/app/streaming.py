@@ -7,6 +7,7 @@ import httpx
 
 from app.logging_config import get_logger
 from app.schemas import ErrorDetail, ErrorResponse
+from app.upstream import UpstreamError
 
 log = get_logger(__name__)
 
@@ -59,9 +60,10 @@ async def relay_sse(response: httpx.Response, started: float) -> AsyncIterator[b
                 log.info("upstream.first_byte", ttft_ms=round((first_byte_at - started) * 1000))
             tracker.feed(chunk)
             yield chunk
-    except httpx.HTTPError:
-        log.exception("upstream.stream_failed")
-        yield sse_error_event(502, "Upstream stream interrupted", "upstream_unavailable")
+    except httpx.HTTPError as exc:
+        error = UpstreamError.from_transport(exc)
+        log.warning("upstream.stream_failed", error_type=error.error_type, error=error.message)
+        yield sse_error_event(error.status_code, error.message, error.error_type)
         yield SSE_DONE
     finally:
         await response.aclose()

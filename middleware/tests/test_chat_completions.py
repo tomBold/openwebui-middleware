@@ -119,6 +119,38 @@ async def test_stream_failure_mid_flight_emits_error_event_and_done(
     assert events[-1] == b"data: [DONE]"
 
 
+async def test_stream_timeout_mid_flight_is_reported_as_timeout(
+    client: AsyncClient, mock_upstream: respx.MockRouter
+) -> None:
+    mock_upstream.post(CHAT_URL).mock(
+        return_value=sse_response(STREAM_CHUNKS[:1], httpx.ReadTimeout("too slow"))
+    )
+
+    async with client.stream(
+        "POST", "/v1/chat/completions", json=chat_payload(stream=True)
+    ) as response:
+        body = b"".join([chunk async for chunk in response.aiter_bytes()])
+
+    error = json.loads(body.split(b"\n\n")[1].removeprefix(b"data: "))
+    assert error["error"] == {
+        "message": "Upstream request timed out",
+        "type": "upstream_timeout",
+        "code": 504,
+    }
+
+
+async def test_upstream_non_json_success_body_is_a_bad_gateway(
+    client: AsyncClient, mock_upstream: respx.MockRouter
+) -> None:
+    mock_upstream.post(CHAT_URL).respond(text="<html>not json</html>")
+
+    response = await client.post("/v1/chat/completions", json=chat_payload())
+
+    assert response.status_code == 502
+    assert response.json()["error"]["type"] == "upstream_unavailable"
+    assert "<html>not json</html>" in response.json()["error"]["message"]
+
+
 @pytest.mark.parametrize("status_code", [400, 401, 429, 500])
 async def test_upstream_error_status_is_relayed(
     client: AsyncClient, mock_upstream: respx.MockRouter, status_code: int

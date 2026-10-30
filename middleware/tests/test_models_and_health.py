@@ -1,8 +1,11 @@
 import httpx
+import pytest
 import respx
+import structlog
 from httpx import ASGITransport, AsyncClient
 
 from app.config import Settings
+from app.logging_config import configure_logging, get_logger
 from app.main import create_app
 
 MODELS_URL = "/models"
@@ -119,3 +122,32 @@ async def test_request_id_is_generated_when_absent(client: AsyncClient) -> None:
     response = await client.get("/health")
 
     assert len(response.headers["X-Request-ID"]) == 32
+
+
+async def test_lifecycle_and_failure_events_are_logged_in_order(
+    client: AsyncClient, mock_upstream: respx.MockRouter
+) -> None:
+    mock_upstream.get(MODELS_URL).respond(status_code=401, json={"error": {"message": "bad key"}})
+
+    with structlog.testing.capture_logs() as logs:
+        await client.get("/ready")
+
+    events = [(log["event"], log["log_level"]) for log in logs]
+    assert events == [
+        ("request.started", "info"),
+        ("readiness.failed", "warning"),
+        ("request.completed", "info"),
+    ]
+    assert logs[-1]["status_code"] == 503
+    assert isinstance(logs[-1]["duration_ms"], int)
+
+
+def test_console_renderer_is_used_when_json_is_off(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging("INFO", json=False)
+    get_logger("test").info("hello.text", answer=42)
+    configure_logging("INFO", json=True)
+
+    line = capsys.readouterr().out.strip()
+    assert line.startswith("20")
+    assert "hello.text" in line
+    assert "answer=42" in line

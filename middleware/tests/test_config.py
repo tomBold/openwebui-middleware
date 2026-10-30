@@ -17,6 +17,13 @@ def test_api_key_is_not_exposed_in_repr() -> None:
     assert settings.openai_api_key.get_secret_value() == "super-secret"
 
 
+def test_log_level_is_normalised_and_validated() -> None:
+    assert Settings(openai_api_key="key", log_level="debug").log_level == "DEBUG"
+
+    with pytest.raises(ValidationError, match="LOG_LEVEL must be one of"):
+        Settings(openai_api_key="key", log_level="loud")
+
+
 def test_api_key_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 

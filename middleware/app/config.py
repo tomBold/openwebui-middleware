@@ -1,3 +1,4 @@
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
@@ -27,6 +28,15 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [model.strip() for model in value.split(",") if model.strip()]
         return value
+
+    @field_validator("log_level")
+    @classmethod
+    def known_log_level(cls, value: str) -> str:
+        level = value.upper()
+        if level not in logging.getLevelNamesMapping():
+            msg = f"LOG_LEVEL must be one of {sorted(logging.getLevelNamesMapping())}"
+            raise ValueError(msg)
+        return level
 
 
 @lru_cache
