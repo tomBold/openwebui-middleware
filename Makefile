@@ -13,7 +13,7 @@ test:
 	cd middleware && uv run pytest
 
 test-docker:
-	docker build --target test --progress=plain middleware
+	docker build --target test --no-cache-filter test --progress=plain middleware
 
 lint:
 	cd middleware && uv run ruff check . && uv run ruff format --check .

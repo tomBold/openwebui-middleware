@@ -74,7 +74,7 @@ The final prompt was run through the middleware against `gpt-6-luna`, `gpt-5.6-l
 | Purchase order with repeated line items | `purchase_order`, line items as an array of leaf objects |
 | Follow-up correcting a date | Prose citing `entities.total` with its confidence, correction applied in the answer |
 
-The receipt and follow-up shown in the README screenshots were produced through Open WebUI itself, not by calling the API directly.
+The screenshots in the README were produced through Open WebUI itself, not by calling the API directly, and they use a job listing and a clinical note rather than the receipt that serves as the example inside the prompt, so they show extraction rather than recall of the example.
 
 ## The prompt
 

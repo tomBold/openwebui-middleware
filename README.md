@@ -51,6 +51,28 @@ cp .env.example .env          # then edit OPENAI_API_KEY
 docker compose up -d --build
 ```
 
+### Configuration
+
+Everything is read from `.env`; `.env.example` lists the same keys with these defaults. After changing a value, `docker compose up -d` applies it (a plain `restart` does not re-read `.env`).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | required | Your key. Only the middleware ever sees it. |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Upstream to forward to; any OpenAI-compatible endpoint works. |
+| `OPENAI_MODELS` | `gpt-6-luna,gpt-5.6-luna,gpt-5.4-mini` | Allowlist shown to Open WebUI. Empty means every model the key can see. If none of the names exist on your account, `/v1/models` returns an empty list and the log says `models.allowlist_matched_nothing`. |
+| `LOG_LEVEL` | `INFO` | Standard Python level names; anything else fails at startup with the allowed list. |
+| `LOG_JSON` | `true` | `false` prints the same events as aligned text, see [Reading the logs](#reading-the-logs). |
+| `UPSTREAM_CONNECT_TIMEOUT` | `10` | Seconds to establish a connection to OpenAI. |
+| `UPSTREAM_READ_TIMEOUT` | `120` | Seconds to wait for OpenAI between bytes; raise it for slow reasoning models. |
+| `READINESS_TIMEOUT` | `5` | Budget for the `/ready` probe. |
+| `OPEN_WEBUI_PORT` | `3000` | Host port for Open WebUI, bound to `127.0.0.1`. |
+| `MIDDLEWARE_PORT` | `8000` | Host port for the middleware, bound to `127.0.0.1`. |
+| `WEBUI_AUTH` | `false` | Open WebUI login screen off for local use. The smoke test's end-to-end step needs it off. |
+| `WEBUI_SECRET_KEY` | `local-dev-secret` | Open WebUI session signing key. |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `openwebui` | Database credentials, used only inside the compose network. |
+
+Both published ports bind to loopback, so nothing on your network can reach the stack or spend your key.
+
 ### Getting an OpenAI API key
 
 The stack needs your own key; none is bundled. At <https://platform.openai.com>:
@@ -84,9 +106,9 @@ This is the path the assignment describes, `User -> Open WebUI -> Middleware -> 
 
 ![One request captured at both ends: the browser payload with no system message, and the middleware log showing the injection](docs/flow.png)
 
-![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
+![A forwarded job listing turned into the extraction envelope](docs/extraction.png)
 
-Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields.
+Ask a follow-up such as "what is the salary range?" and the reply is prose referring to the extracted fields.
 
 ![A follow-up question answered in prose, citing the extracted fields and their confidence](docs/follow-up.png)
 
@@ -96,21 +118,23 @@ Ask a follow-up such as "what was the total?" and the reply is prose referring t
 
 | Event | Fields | Meaning |
 | --- | --- | --- |
+| `app.started` | `upstream`, `models`, `system_prompt_chars` | Once at boot: what it forwards to and which prompt it loaded |
 | `request.started` | `method`, `path` | Request accepted |
 | `chat.request` | `model`, `stream`, `messages_in`, `messages_out`, `system_prompt_injected` | Prompt prepended; one more message leaves than arrived |
 | `upstream.first_byte` | `ttft_ms` | OpenAI started answering; time to first token |
 | `upstream.stream_completed` | `duration_ms`, `prompt_tokens`, `completion_tokens`, `total_tokens` | Stream finished, usage read off the final chunk |
+| `chat.completed` | `prompt_tokens`, `completion_tokens`, `total_tokens` | Non-streaming equivalent of the line above |
 | `request.completed` | `status_code`, `duration_ms` | Response fully sent |
 
-Failures get their own events at `warning` level and never hide the status: `upstream.error` (`status_code`, `error_type`, `error`) for an OpenAI 4xx or 5xx relayed as is, a 502 for a connection failure or a 504 for a timeout; `upstream.stream_failed` when the connection drops mid-stream, after which the client receives an SSE error event and `[DONE]`; `readiness.failed` when `/ready` cannot reach OpenAI and answers 503.
+Failures get their own events at `warning` level and never hide the status: `upstream.error` (`status_code`, `error_type`, `error`) when OpenAI answers 4xx or 5xx, which is relayed with the same status, message and type in the OpenAI error shape, or when the connection fails (502) or times out (504); `upstream.stream_failed` (`error_type`, `error`) when the connection drops mid-stream, after which the client receives an SSE error event carrying the same 502 or 504 classification, then `[DONE]`; `readiness.failed` when `/ready` cannot reach OpenAI and answers 503.
 
-Logs are JSON by default so they can be shipped anywhere. For reading them as text, set `LOG_JSON=false` in `.env` and restart:
+Logs are JSON by default so they can be shipped anywhere. For reading them as text, set `LOG_JSON=false` in `.env` and run `docker compose up -d middleware`. The same run with a rejected key then looks like this (keys are sorted alphabetically by the renderer):
 
 ```text
-04:51:11.109 [info     ] request.started      method=POST path=/v1/chat/completions request_id=c0e82dd3...
-04:51:11.114 [info     ] chat.request         messages_in=1 messages_out=2 model=gpt-5.4-mini stream=True system_prompt_injected=True request_id=c0e82dd3...
-04:51:11.462 [warning  ] upstream.error       error='Incorrect API key provided: sk-inval*********pose.' error_type=invalid_request_error status_code=401 request_id=c0e82dd3...
-04:51:11.468 [info     ] request.completed    duration_ms=361 status_code=401 request_id=c0e82dd3...
+2026-10-30T04:51:11.109566Z [info     ] request.started                method=POST path=/v1/chat/completions request_id=c0e82dd3c9214a42a4a5e67c3d5cdecd
+2026-10-30T04:51:11.114973Z [info     ] chat.request                   messages_in=1 messages_out=2 model=gpt-5.4-mini request_id=c0e82dd3c9214a42a4a5e67c3d5cdecd stream=True system_prompt_injected=True
+2026-10-30T04:51:11.462450Z [warning  ] upstream.error                 error='Incorrect API key provided: sk-inval*********pose. You can find your API key at https://platform.openai.com/account/api-keys.' error_type=invalid_request_error request_id=c0e82dd3c9214a42a4a5e67c3d5cdecd status_code=401
+2026-10-30T04:51:11.468500Z [info     ] request.completed              duration_ms=361 request_id=c0e82dd3c9214a42a4a5e67c3d5cdecd status_code=401
 ```
 
 ### Verification tooling: the middleware address
@@ -179,9 +203,9 @@ The prompt and the reasoning behind it, with the edge cases it was tested agains
 
 - **Prompt injected server-side, not in Open WebUI.** The contract holds for every client of the middleware, and it cannot be edited away in the UI. It is prepended as the first message, so a per-model system prompt configured in Open WebUI still arrives and is simply subordinate.
 - **Streaming is a byte passthrough.** Upstream SSE chunks are relayed as they arrive rather than parsed and re-serialised, so time to first token matches the upstream and no OpenAI field is accidentally dropped. Usage is read off the stream in parallel for logging, which is why `stream_options.include_usage` is injected when the caller did not ask for it.
-- **Failures stay in the OpenAI error shape.** Upstream 4xx and 5xx keep their status and body; connect errors become 502 and timeouts 504. A failure that happens mid-stream cannot change the status code, so it is emitted as an SSE error event followed by `[DONE]`, which Open WebUI renders instead of hanging.
+- **Failures stay in the OpenAI error shape.** Upstream 4xx and 5xx keep their status, message and type; connect errors become 502 and timeouts 504; a 200 with an unparseable body is a 502 rather than a crash. A failure that happens mid-stream cannot change the status code, so it is emitted as an SSE error event followed by `[DONE]`, which Open WebUI renders instead of hanging.
 - **Two kinds of health.** `/health` answers whether the process is alive, `/ready` whether it can actually serve traffic. Compose gates Open WebUI on the container healthcheck so the model list is never fetched from a dead middleware.
-- **Background generation disabled.** Open WebUI 0.6.5 generates chat titles, tags and follow-ups through the same chat endpoint, which the extractor prompt would answer with JSON. Those features are turned off in compose so the behaviour is predictable; the trade-off is noted rather than hidden.
+- **Background generation disabled.** Open WebUI 0.6.5 generates chat titles, tags, autocomplete and search queries through the same chat endpoint, which the extractor prompt would answer with JSON. Those features are turned off in compose so the behaviour is predictable; the trade-off is noted rather than hidden.
 - **Config is environment-only and persistent config is off.** `OPENAI_API_BASE_URL` is an Open WebUI `ConfigVar` that would otherwise be frozen at first boot, which makes a container rebuild silently ignore `.env`.
 - **PostgreSQL over SQLite.** The assignment asks for a database service, and it also matches how Open WebUI is meant to run outside single-user setups.
 
@@ -190,10 +214,10 @@ The prompt and the reasoning behind it, with the edge cases it was tested agains
 ### Tests without installing anything
 
 ```bash
-make test-docker           # or: docker build --target test --progress=plain middleware
+make test-docker           # or: docker build --target test --no-cache-filter test --progress=plain middleware
 ```
 
-The image has a `test` stage that runs the linter, the type checker and the unit tests with the dev dependencies, then stops. It exits non-zero on any failure and leaves nothing on the host. CI runs this same stage.
+The image has a `test` stage that runs the linter, the type checker and the unit tests with the dev dependencies, then stops. It exits non-zero on any failure and leaves nothing on the host. `--no-cache-filter test` makes Docker rerun the tests instead of printing `CACHED` on a second run. CI runs this same stage. `make` is a convenience throughout; every target is the one-line command shown next to it.
 
 ### Tests on the host
 
@@ -207,7 +231,7 @@ make test                         # from the repo root
 cd middleware && uv run pytest    # the same, without make
 ```
 
-The first run syncs the environment, then 37 tests run in about a second. Coverage is printed with missing lines and the run fails below 90%. OpenAI is mocked with `respx`, so the tests need no key and no network. Useful variants:
+The first run syncs the environment, then 42 tests run in about a second. Coverage is printed with missing lines and the run fails below 90%. OpenAI is mocked with `respx`, so the tests need no key and no network. Useful variants:
 
 ```bash
 uv run pytest -v                                  # one line per test
@@ -218,10 +242,10 @@ uv run pytest -k timeout                          # tests matching a keyword
 | File | Covers |
 | --- | --- |
 | `test_prompt.py` | Prompt is prepended, a caller's system message survives, caller messages are not mutated, `SYSTEM_PROMPT.md` matches the shipped prompt. |
-| `test_chat_completions.py` | Non-streaming and streaming passthrough, `stream_options` handling, upstream 400/401/429/500 relayed with status, timeout to 504, connect error to 502, mid-stream failure to SSE error plus `[DONE]`, invalid body rejected. |
+| `test_chat_completions.py` | Non-streaming and streaming passthrough, `stream_options` handling, the `chat.request` log line, upstream 400/401/429/500 relayed with status, timeout to 504, connect error to 502, non-JSON success body to 502, mid-stream drop and mid-stream timeout to SSE error plus `[DONE]`, invalid body rejected. |
 | `test_streaming.py` | Usage parsed from the final SSE event, events split across chunks, malformed lines ignored. |
-| `test_models_and_health.py` | Model allowlist, `/health` never calls upstream, `/ready` states, status page, request id echoed or generated. |
-| `test_config.py` | Comma-separated models, key required, key never appears in repr. |
+| `test_models_and_health.py` | Model allowlist, `/health` never calls upstream, `/ready` states, status page, request id echoed or generated, lifecycle and failure events in order, text log renderer. |
+| `test_config.py` | Comma-separated models, log level validated, key required, key never appears in repr. |
 
 ### Lint, types and the full check
 

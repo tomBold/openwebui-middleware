@@ -49,10 +49,10 @@ Open <http://localhost:8000>: all three cards show a green dot and Send returns 
 Open <http://localhost:3000>, pick a model, paste:
 
 ```text
-Fwd: payment - Hi, attached the receipt from Cafe Luna, 14/03 2024, 2x espresso 9.00, 1 croissant 4.50, total 13.5 eur. paid by card ****4421. - Dana
+fwd: saw this on linkedin?? Senior Backend Eng @ Acme Robotics, Berlin (hybrid, 2d/wk). 85-100k EUR + equity. Python/FastAPI, k8s, 5+ yrs. apply by Nov 15 -> jobs@acme-robotics.example ref AR-2291. think ur a fit?
 ```
 
-Expect a JSON reply with `document_type: "receipt"` and a confidence per field. Then ask `what was the total?` and expect one sentence of prose citing the extracted amount. Confirm the request went through the middleware:
+Expect a JSON reply with `document_type: "job_listing"` and a confidence per field; the deadline has no year, so expect it under `uncertain_fields` or flagged in `notes`. Then ask `what is the salary range, and how sure are you about the deadline?` and expect prose citing the extracted values and their confidence. This text is deliberately not the receipt used as the example inside the prompt, so the model is extracting, not recalling. Confirm the request went through the middleware:
 
 ```bash
 docker compose logs middleware | grep chat.request | tail -n 2
@@ -65,10 +65,10 @@ Expect two lines, one per message, with `"messages_in": 1, "messages_out": 2` an
 ## 5. Run the unit tests, linter and type checker
 
 ```bash
-make test-docker          # or: docker build --target test --progress=plain middleware
+make test-docker          # or: docker build --target test --no-cache-filter test --progress=plain middleware
 ```
 
-No local Python is used. Expect `36 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
+No local Python is used. Expect `41 passed, 1 skipped`, a coverage total above 90%, and an exit code of 0. The skipped test compares `SYSTEM_PROMPT.md` with the shipped prompt and needs the repository root, so it runs on the host and in CI. The same checks run on the host with `make check` if `uv` is installed; see the README.
 
 ## 6. Stop
 

@@ -17,7 +17,7 @@ def order_keys(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
 
 def configure_logging(level: str, *, json: bool) -> None:
     renderer: Processor = (
-        structlog.processors.JSONRenderer() if json else structlog.dev.ConsoleRenderer()
+        structlog.processors.JSONRenderer() if json else structlog.dev.ConsoleRenderer(colors=False)
     )
     structlog.configure(
         processors=[
