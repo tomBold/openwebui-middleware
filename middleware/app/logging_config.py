@@ -28,7 +28,9 @@ def configure_logging(level: str, *, json: bool) -> None:
             order_keys,
             renderer,
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(level.upper())),
+        wrapper_class=structlog.make_filtering_bound_logger(
+            logging.getLevelNamesMapping()[level.upper()]
+        ),
         logger_factory=structlog.PrintLoggerFactory(sys.stdout),
         cache_logger_on_first_use=False,
     )
