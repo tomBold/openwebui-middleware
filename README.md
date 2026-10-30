@@ -82,6 +82,8 @@ Everything else stays `None`. Set an expiry and rotate rather than leaving the k
 
 This is the path the assignment describes, `User -> Open WebUI -> Middleware -> OpenAI`, and the only one a user ever sees. Open the Open WebUI URL the start script printed, pick a model, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Open WebUI sends a plain user message; the middleware adds the system prompt before anything reaches OpenAI. The browser's network tab shows the `completions` request leaving with only `user` and `assistant` messages and no `system` entry, and the middleware log for the same request shows `"messages_in": 1, "messages_out": 2, "system_prompt_injected": true`.
 
+![One request captured at both ends: the browser payload with no system message, and the middleware log showing the injection](docs/flow.png)
+
 ![A forwarded receipt turned into the extraction envelope](docs/extraction.png)
 
 Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields.
