@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr
     openai_base_url: HttpUrl = HttpUrl("https://api.openai.com/v1")
-    openai_models: Annotated[list[str], NoDecode] = ["gpt-4o-mini", "gpt-4o"]
+    openai_models: Annotated[list[str], NoDecode] = ["gpt-6-luna", "gpt-5.6-luna", "gpt-5.4-mini"]
     system_prompt_path: Path = DEFAULT_PROMPT_PATH
     upstream_connect_timeout: float = 10.0
     upstream_read_timeout: float = 120.0

@@ -71,10 +71,10 @@ curl localhost:8000/v1/models
 
 curl -N localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"gpt-4o-mini","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
+  -d '{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"Invoice INV-2024-881 from Globex, due 2024-05-01, total 1,250.00 USD"}]}'
 ```
 
-In the UI: open <http://localhost:3000>, pick `gpt-4o-mini`, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured log line per lifecycle event, including the injected prompt, time to first token, and token usage.
+In the UI: open <http://localhost:3000>, pick `gpt-6-luna`, paste any messy text (a receipt, an email, a job listing) and the reply is the extraction JSON. Ask a follow-up such as "what was the total?" and the reply is prose referring to the extracted fields. `docker compose logs -f middleware` shows one structured log line per lifecycle event, including the injected prompt, time to first token, and token usage.
 
 ## How it works
 
