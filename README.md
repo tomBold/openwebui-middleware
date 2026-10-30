@@ -26,7 +26,7 @@ flowchart LR
 
 ## Run it locally
 
-Requirements: Docker Desktop and an OpenAI API key. Nothing else.
+Requirements: Docker Desktop and an OpenAI API key. Nothing else; Python is only needed to run the tests, see [Development](#development).
 
 ```bash
 git clone <repo-url> && cd openwebui-middleware
@@ -139,14 +139,53 @@ Open WebUI 0.6.5 only calls `/models` and `/chat/completions` on an OpenAI-compa
 
 ## Development
 
+Running the stack needs only Docker. Running the tests and linters on your machine needs [uv](https://docs.astral.sh/uv/), which creates the virtual environment from `middleware/uv.lock` and downloads Python 3.12 itself if no suitable interpreter (3.11 or newer) is installed. Nothing is installed globally.
+
 ```bash
-cd middleware
-uv sync
-uv run pytest          # unit tests with coverage
-uv run ruff check .    # lint
-uv run mypy .          # strict type checking
+curl -LsSf https://astral.sh/uv/install.sh | sh                                     # macOS, Linux
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 ```
 
-CI runs the same three commands on Python 3.11, 3.12 and 3.13, and separately builds the image and checks that it serves `/health`.
+### Running the tests
+
+```bash
+make test                  # from the repo root
+cd middleware && uv run pytest    # the same, without make
+```
+
+The first run syncs the environment, then 36 tests run in about a second. Coverage is printed with missing lines and the run fails below 90%. OpenAI is mocked with `respx`, so the tests need no key and no network. Useful variants:
+
+```bash
+uv run pytest -v                                  # one line per test
+uv run pytest tests/test_chat_completions.py      # one file
+uv run pytest -k timeout                          # tests matching a keyword
+```
+
+| File | Covers |
+| --- | --- |
+| `test_prompt.py` | Prompt is prepended, a caller's system message survives, caller messages are not mutated, `SYSTEM_PROMPT.md` matches the shipped prompt. |
+| `test_chat_completions.py` | Non-streaming and streaming passthrough, `stream_options` handling, upstream 400/401/429/500 relayed with status, timeout to 504, connect error to 502, mid-stream failure to SSE error plus `[DONE]`, invalid body rejected. |
+| `test_streaming.py` | Usage parsed from the final SSE event, events split across chunks, malformed lines ignored. |
+| `test_models_and_health.py` | Model allowlist, `/health` never calls upstream, `/ready` states, status page, request id echoed or generated. |
+| `test_config.py` | Comma-separated models, key required, key never appears in repr. |
+
+### Lint, types and the full check
+
+```bash
+make lint          # ruff check, ruff format --check
+make typecheck     # mypy --strict
+make check         # all three, what CI runs
+```
+
+CI runs the same commands on Python 3.11, 3.12 and 3.13 on Ubuntu and 3.12 on macOS, lints the shell scripts, and builds the image and checks that it serves `/health`. Optional hooks for the same checks: `uv run --project middleware pre-commit install`.
+
+### Running the middleware without Docker
+
+```bash
+cd middleware
+OPENAI_API_KEY=sk-... uv run uvicorn app.main:create_app --factory --reload
+```
+
+It listens on <http://localhost:8000> with the status page at `/` and the OpenAPI docs at `/docs`. The other settings in `.env.example` can be passed the same way.
 
 The system prompt and the reasoning behind it are in [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md). It is loaded from `middleware/app/prompts/system_prompt.md` at startup, and a unit test asserts the document and the shipped file never drift.
