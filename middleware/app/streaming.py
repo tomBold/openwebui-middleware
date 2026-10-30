@@ -49,8 +49,7 @@ class UsageTracker:
                 self.usage = payload["usage"]
 
 
-async def relay_sse(response: httpx.Response) -> AsyncIterator[bytes]:
-    started = time.perf_counter()
+async def relay_sse(response: httpx.Response, started: float) -> AsyncIterator[bytes]:
     tracker = UsageTracker()
     first_byte_at: float | None = None
     try:

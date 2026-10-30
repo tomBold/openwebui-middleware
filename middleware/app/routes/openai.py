@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 from fastapi import APIRouter, Response
@@ -45,7 +46,8 @@ async def chat_completions(
         return JSONResponse(completion)
 
     payload["stream_options"] = {**(body.stream_options or {}), "include_usage": True}
+    started = time.perf_counter()
     response = await upstream.open_chat_stream(payload)
     return StreamingResponse(
-        relay_sse(response), media_type="text/event-stream", headers=STREAM_HEADERS
+        relay_sse(response, started), media_type="text/event-stream", headers=STREAM_HEADERS
     )
