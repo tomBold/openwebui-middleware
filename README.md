@@ -38,6 +38,8 @@ git clone https://github.com/tomBold/openwebui-middleware.git && cd openwebui-mi
 
 The script creates `.env` from `.env.example`, prompts for the API key (or takes it from `OPENAI_API_KEY` in the environment and asks nothing), builds and starts the three services, waits until the middleware reports ready, and prints the two URLs to open: Open WebUI on <http://localhost:3000> and the middleware on <http://localhost:8000> by default. If something on your machine already uses one of those ports, change `OPEN_WEBUI_PORT` or `MIDDLEWARE_PORT` in `.env` and rerun; the printed URLs follow.
 
+Open WebUI needs up to a minute after the script finishes before it serves its first page; reload if it is not there yet. A blank page or a 404 that is not Open WebUI means another process on your machine already owns that port: change `OPEN_WEBUI_PORT` in `.env`, rerun the script and use the URL it prints.
+
 [RUNBOOK.md](RUNBOOK.md) is the same journey as a checklist: each step non-interactive, with the expected output and a troubleshooting table.
 
 Manual equivalent:
