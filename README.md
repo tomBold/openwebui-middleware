@@ -27,7 +27,7 @@ flowchart LR
     OpenAI -->|SSE| MW -->|SSE| WebUI
 ```
 
-Open WebUI is the chat application and owns the state; it keeps chats, users and settings in PostgreSQL. The middleware is stateless: it never touches the database, it only sits on the path to OpenAI.
+Open WebUI is the chat application and owns the state; it keeps chats, users and settings in PostgreSQL. The middleware is stateless: it never touches the database, it only sits on the path to OpenAI. What it forwards is the client's request untouched, with two additions: the system prompt inserted as the first message, and `stream_options.include_usage` when streaming so token usage can be logged. Nothing is removed, rewritten or redacted.
 
 ## Run it locally
 
